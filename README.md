@@ -222,9 +222,12 @@ curl -X POST http://localhost:3001/api/analyze \
 3. Backend lance **en parallèle** :
    - Appel service Python AST (analyse statique)
    - 3 appels Groq simultanés (bugs / sécurité / style)
-4. Aggregateur fusionne, déduplique et trie par priorité :
-   `critical > high > medium > low` | `security > bug > style`
-5. Persistance MySQL (review + issues)
+4. Aggregateur fusionne, **déduplique intelligemment** et trie par priorité :
+   - Clé de dédup : `category | rule | line | message_normalisé`
+   - En cas de doublon : sévérité la plus haute conservée, sources fusionnées (`ast+groq`), suggestion la plus longue retenue
+   - `critical > high > medium > low` | `security > bug > style`
+   - **Cap à 12 issues** après tri (signal > bruit)
+5. Persistance MySQL (review + issues caps)
 6. Retour JSON complet au frontend
 
 ---
@@ -241,6 +244,28 @@ curl -X POST http://localhost:3001/api/analyze \
 | Timeout Python (>10s)  | Fallback + warning                        |
 | MySQL down             | L'analyse retourne quand même (sans persistance) + log |
 | Service Python down    | Analyse Groq continue, AST skippé + warning |
+| 28 issues brutes       | Dédup + cap → max 12 issues nettes retournées |
+
+---
+
+## Déduplication et cap des résultats
+
+PolyCheck peut recevoir jusqu'à 4 sources simultanées (Groq×3 catégories + AST).
+Sans dédup, un secret hardcodé peut apparaître 4 fois dans le rapport.
+
+**Stratégie de fusion (`aggregator.js`)** :
+
+| Règle                     | Comportement |
+|---------------------------|--------------|
+| Même `category+rule+line+message_normalisé` | Issues fusionnées |
+| Sévérités différentes     | Sévérité la plus haute conservée |
+| Sources différentes       | `groq` + `ast` → `ast+groq` |
+| Suggestions différentes   | La plus longue (non vide) retenue |
+| Cap final                 | Max **12 issues** après tri (MVP) |
+
+**Tri final** : `severity desc` → `security > bug > style` → `line asc`
+
+Le champ `summary.total_before_cap` indique le nombre d'issues uniques avant le cap.
 
 ---
 

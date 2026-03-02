@@ -238,3 +238,24 @@ Content-Type: application/json
 }
 
 ###
+
+# ════════════════════════════════════════════════════════════════
+# DÉDUPLICATION & CAP
+# ════════════════════════════════════════════════════════════════
+
+### 22. Code avec eval + secret hardcodé → pas de doublons, total <= 12
+# Attendu :
+#   HTTP 200
+#   issues: tableau avec total <= 12 (champ summary.total)
+#   Pas de doublon sur la même règle/ligne
+#   summary.total_before_cap présent (informatif)
+POST {{baseUrl}}/api/analyze
+Content-Type: application/json
+
+{
+  "code": "import os\n\nAPI_SECRET = 'sk-live-abcdef1234567890abcdef'\nDB_PASSWORD = 'super_secret_password_123'\nAWS_KEY = 'AKIAIOSFODNN7EXAMPLE'\n\ndef run_user_input(user_data):\n    result = eval(user_data)\n    return result\n\ndef execute_command(cmd):\n    result = eval(cmd)\n    return result\n\ndef process(x, y, z, a, b, c, d):\n    try:\n        return eval(str(x+y))\n    except:\n        pass\n",
+  "language": "python",
+  "filename": "noisy_code.py"
+}
+
+###
