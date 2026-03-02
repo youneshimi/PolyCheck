@@ -1,1 +1,0 @@
-﻿{"code":"def hello():\n    print(\"world\")\n","language":"python","filename":"smoke.py"}
