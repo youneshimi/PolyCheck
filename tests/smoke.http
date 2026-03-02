@@ -278,3 +278,25 @@ Content-Type: application/json
 }
 
 ###
+
+# ════════════════════════════════════════════════════════════════
+# FUZZY LINE DEDUPE
+# ════════════════════════════════════════════════════════════════
+
+### 24. div(10,0) + bare-except → bare-except pas dupliqué par prompt, total <= 12
+# Attendu :
+#   HTTP 200
+#   summary.total <= 12
+#   "bare-except" apparaît au maximum 2 fois (1 par bloc try/except, pas 4x pour 4 prompts)
+#   La règle "bare-except" est canonisée (pas bareexcept/broadexception séparés)
+#   summary.total_before_cap < total_brut_sans_dedup
+POST {{baseUrl}}/api/analyze
+Content-Type: application/json
+
+{
+  "code": "def divide(a, b):\n    try:\n        result = a / b\n        return result\n    except:\n        pass\n\ndef safe_div(x, y):\n    try:\n        return x / y\n    except:\n        return 0\n\n# appel volontaire qui plantera\nvalue = divide(10, 0)\n",
+  "language": "python",
+  "filename": "div_except.py"
+}
+
+###

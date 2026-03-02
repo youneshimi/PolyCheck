@@ -55,27 +55,66 @@ function canonicalizeRule(rule, message = '') {
     }
     if (r.startsWith('hardcoded') || r.startsWith('hard-coded')) return 'hardcoded-secret';
     if (r.startsWith('sql')) return 'sql-injection';
+    // Variantes bare-except : bare-except*, bareexcept*, broad-except*, broadexception*, generic-except*, empty-except*, except* (hors "exception")
+    if (r.startsWith('bare-except') || r.startsWith('bareexcept') ||
+        r.startsWith('broad-except') || r.startsWith('generic-except') ||
+        r.startsWith('empty-except') ||
+        (r.startsWith('broad') && (r.includes('except') || r.includes('exception'))) ||
+        (r.startsWith('except') && r !== 'exception')) {
+        return 'bare-except';
+    }
+    // Variantes division par zéro : division*, zero-division*, divide-by-zero*, zerodivision*
+    if (r.startsWith('division') || r.startsWith('zero-division') ||
+        r.startsWith('zerodivision') || r.startsWith('divide-by-zero') ||
+        r.startsWith('zero-divide')) {
+        return 'division-by-zero';
+    }
     return r;
 }
 
-/** Ensemble des règles canoniques reconnues. Pour ces règles, le message
- *  est exclu de la clé de dédup : Groq peut retourner exactement "eval" OU
- *  "eval-injection" OU "eval_insecure" selon le prompt (bug/security/style)
- *  → descriptions divergentes, seul canonRule+line suffit à identifier le doublon. */
-const CANONICAL_RULES = new Set(['eval', 'shell-injection', 'hardcoded-secret', 'sql-injection']);
+/**
+ * Règles pour lesquelles le message est exclu de la clé de dédup.
+ * Groq peut retourner des descriptions différentes selon le prompt (bug/security/style)
+ * → seuls canonRule + line_bucket suffisent à identifier le doublon.
+ */
+const CANONICAL_RULES = new Set([
+    'eval', 'shell-injection', 'hardcoded-secret', 'sql-injection',
+    'bare-except', 'division-by-zero',
+]);
+
+/**
+ * Règles pour lesquelles on applique un bucketing de ligne (fuzzy ±3).
+ * Uniquement pour les règles "bruyantes" dont la ligne peut varier de ±1–3
+ * selon le prompt Groq. On N'applique PAS le fuzzy à eval/shell/hardcoded
+ * pour éviter de fusionner deux occurrences distinctes sur des lignes proches.
+ */
+const FUZZY_LINE_RULES = new Set(['bare-except', 'division-by-zero']);
+
+/** Bucket de ligne : regroupe par tranches de 8 lignes (couvre un bloc try/except typique).
+ *  0-7 → 0, 8-15 → 8, 16-23 → 16, ...
+ *  Groq peut reporter bare-except sur la ligne `try:` ou `except:` selon le prompt
+ *  (ex: l2 et l5 pour le même bloc → même bucket 0). */
+function lineBucket(line) {
+    const n = Number(line) || 0;
+    return String(Math.floor(n / 8) * 8);
+}
 
 /**
  * Génère la clé de déduplication d'une issue.
- * La catégorie est EXCLUE pour fusionner les doublons cross-catégories
- * (ex : security:eval-injection ↔ bug:eval_insecure ↔ style:eval sur la même ligne).
- * Pour les règles canoniques reconnues, le message est aussi exclu de la clé.
- * Pour les autres règles, le message normalisé discrimine pour éviter la sur-fusion.
+ * - Catégorie EXCLUE : pour fusionner les doublons cross-catégories.
+ * - Règles canoniques : message exclu (descriptions Groq divergent selon prompt).
+ * - Règles fuzzy (bare-except, division-by-zero) : ligne buckétisée (±3 lignes).
  */
 function dedupKey(issue) {
     const canonRule = canonicalizeRule(issue.rule, issue.message);
-    const line = issue.line != null ? String(issue.line) : 'null';
+    const rawLine = issue.line != null ? issue.line : null;
+    const lineKey = rawLine === null
+        ? 'null'
+        : FUZZY_LINE_RULES.has(canonRule)
+            ? lineBucket(rawLine)
+            : String(rawLine);
     const normMsg = CANONICAL_RULES.has(canonRule) ? '' : normalizeMessage(issue.message);
-    return `${canonRule}|${line}|${normMsg}`;
+    return `${canonRule}|${lineKey}|${normMsg}`;
 }
 
 /**
@@ -155,17 +194,21 @@ function aggregateAndPrioritize(groqResults, astIssues = []) {
         const key = dedupKey(issue);
 
         if (!deduped.has(key)) {
-            // Première occurrence : stocker avec règle canonisée (+ message passé pour désambiguation)
+            // Première occurrence : stocker avec règle canonisée
             deduped.set(key, { ...issue, rule: canonicalizeRule(issue.rule, issue.message) });
         } else {
-            // Doublon cross-catégorie détecté : fusion intelligente
+            // Doublon (exact ou fuzzy) détecté : fusion intelligente
             const existing = deduped.get(key);
             // Priorité catégorie : security > bug > style
             existing.category = maxCategory(existing.category, issue.category);
             existing.severity = maxSeverity(existing.severity, issue.severity);
             existing.source = mergeSources(existing.source, issue.source);
             existing.suggestion = longestString(existing.suggestion, issue.suggestion);
-            // On garde le message le plus long (plus informatif)
+            // Ligne = min(line) pour stabiliser l'affichage sur la première occurrence
+            if (issue.line != null && (existing.line == null || issue.line < existing.line)) {
+                existing.line = issue.line;
+            }
+            // Message le plus long (plus informatif)
             if ((issue.message || '').length > (existing.message || '').length) {
                 existing.message = issue.message;
             }
