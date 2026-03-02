@@ -246,9 +246,9 @@ Content-Type: application/json
 ### 22. Code avec eval + secret hardcodé → pas de doublons, total <= 12
 # Attendu :
 #   HTTP 200
-#   issues: tableau avec total <= 12 (champ summary.total)
-#   Pas de doublon sur la même règle/ligne
+#   summary.total <= 12
 #   summary.total_before_cap présent (informatif)
+#   Pas de doublon sur la même règle/ligne
 POST {{baseUrl}}/api/analyze
 Content-Type: application/json
 
@@ -256,6 +256,25 @@ Content-Type: application/json
   "code": "import os\n\nAPI_SECRET = 'sk-live-abcdef1234567890abcdef'\nDB_PASSWORD = 'super_secret_password_123'\nAWS_KEY = 'AKIAIOSFODNN7EXAMPLE'\n\ndef run_user_input(user_data):\n    result = eval(user_data)\n    return result\n\ndef execute_command(cmd):\n    result = eval(cmd)\n    return result\n\ndef process(x, y, z, a, b, c, d):\n    try:\n        return eval(str(x+y))\n    except:\n        pass\n",
   "language": "python",
   "filename": "noisy_code.py"
+}
+
+###
+
+### 23. eval() sur une seule ligne → exactement 1 issue, catégorie SECURITY uniquement
+# Attendu :
+#   HTTP 200
+#   Pour la ligne contenant eval(user_input) :
+#     - UNE SEULE issue (pas security + bug séparés)
+#     - issue.category === "security" (security gagne sur bug)
+#     - issue.rule === "eval" (règle canonisée)
+#   summary.total petit (code minimal → peu d'issues)
+POST {{baseUrl}}/api/analyze
+Content-Type: application/json
+
+{
+  "code": "def handle(user_input):\n    return eval(user_input)\n",
+  "language": "python",
+  "filename": "eval_only.py"
 }
 
 ###
