@@ -1,0 +1,30 @@
+/* PolyCheck – CSS Global */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:          #0f1117;
+  --bg-card:     #1a1d27;
+  --bg-input:    #12151f;
+  --border:      #2d3148;
+  --accent:      #6c63ff;
+  --accent-h:    #8b85ff;
+  --text:        #e2e8f0;
+  --text-muted:  #8892a4;
+  --critical:    #ef4444;
+  --high:        #f97316;
+  --medium:      #eab308;
+  --low:         #22c55e;
+  --security:    #ec4899;
+  --bug:         #f97316;
+  --style-c:     #3b82f6;
+  --radius:      8px;
+  --shadow:      0 4px 24px rgba(0,0,0,0.4);
+}
+
+html { font-size: 16px; }
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}

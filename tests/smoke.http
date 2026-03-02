@@ -1,0 +1,240 @@
+### PolyCheck – Tests de fumée (VS Code REST Client)
+### Extension requise : humao.rest-client
+### Usage : cliquez sur "Send Request" au-dessus de chaque requête
+
+@baseUrl = http://localhost:3001
+@pythonUrl = http://localhost:8000
+
+# ════════════════════════════════════════════════════════════════
+# HEALTH CHECKS
+# ════════════════════════════════════════════════════════════════
+
+### 1. Health Backend
+GET {{baseUrl}}/health
+Accept: application/json
+
+###
+
+### 2. Health Service Python AST
+GET {{pythonUrl}}/health
+Accept: application/json
+
+###
+
+# ════════════════════════════════════════════════════════════════
+# ANALYSE – CAS NOMINAUX
+# ════════════════════════════════════════════════════════════════
+
+### 3. Analyser du code Python avec bugs + sécurité
+POST {{baseUrl}}/api/analyze
+Content-Type: application/json
+
+{
+  "code": "import os\n\npassword = \"admin123\"\napi_key = \"sk-live-abcdef123456\"\n\ndef divide(a, b):\n    return a / b\n\ndef process_data(data):\n    try:\n        result = eval(data)\n        return result\n    except:\n        pass\n\ndef very_long_function(a, b, c, d, e, f, g, h):\n    x = a + b\n    y = c + d\n    z = e + f\n    w = g + h\n    if x == True:\n        return x == None\n    return x + y + z + w\n",
+  "language": "python",
+  "filename": "security_test.py"
+}
+
+###
+
+### 4. Analyser du code JavaScript
+POST {{baseUrl}}/api/analyze
+Content-Type: application/json
+
+{
+  "code": "const password = 'secret123';\n\nfunction fetchUser(id) {\n  const query = 'SELECT * FROM users WHERE id = ' + id;\n  return db.execute(query);\n}\n\nconst apiKey = 'sk-live-abcdef1234567890';\nconsole.log('API Key:', apiKey);\n",
+  "language": "javascript",
+  "filename": "app.js"
+}
+
+###
+
+### 5. Analyser du code TypeScript
+POST {{baseUrl}}/api/analyze
+Content-Type: application/json
+
+{
+  "code": "// TODO: fix this later\nfunction calculateTotal(items: any[]): number {\n  let total = 0;\n  for (let i = 0; i < items.length; i++) {\n    total = total + items[i].price;\n  }\n  return total;\n}\n\nexport default calculateTotal;\n",
+  "language": "typescript",
+  "filename": "utils.ts"
+}
+
+###
+
+### 6. Analyser du code Go
+POST {{baseUrl}}/api/analyze
+Content-Type: application/json
+
+{
+  "code": "package main\n\nimport (\n\t\"fmt\"\n\t\"os/exec\"\n)\n\nfunc runCommand(input string) {\n\tcmd := exec.Command(\"sh\", \"-c\", input)\n\tout, _ := cmd.Output()\n\tfmt.Println(string(out))\n}\n\nfunc main() {\n\tpassword := \"admin\"\n\tfmt.Println(password)\n\trunCommand(\"ls -la\")\n}\n",
+  "language": "go",
+  "filename": "main.go"
+}
+
+###
+
+# ════════════════════════════════════════════════════════════════
+# ANALYSE – CAS LIMITES (doivent retourner des erreurs propres)
+# ════════════════════════════════════════════════════════════════
+
+### 7. Fichier vide → doit retourner HTTP 400
+POST {{baseUrl}}/api/analyze
+Content-Type: application/json
+
+{
+  "code": "",
+  "language": "python"
+}
+
+###
+
+### 8. Code uniquement espaces → doit retourner HTTP 400
+POST {{baseUrl}}/api/analyze
+Content-Type: application/json
+
+{
+  "code": "   \n\t\n   ",
+  "language": "python"
+}
+
+###
+
+### 9. Langage non supporté → doit retourner HTTP 422
+POST {{baseUrl}}/api/analyze
+Content-Type: application/json
+
+{
+  "code": "IDENTIFICATION DIVISION.\nPROGRAM-ID. HelloWorld.",
+  "language": "cobol"
+}
+
+###
+
+### 10. Champ code manquant → doit retourner HTTP 400
+POST {{baseUrl}}/api/analyze
+Content-Type: application/json
+
+{
+  "language": "python"
+}
+
+###
+
+### 11. Champ language manquant → doit retourner HTTP 400
+POST {{baseUrl}}/api/analyze
+Content-Type: application/json
+
+{
+  "code": "print('hello')"
+}
+
+###
+
+# ════════════════════════════════════════════════════════════════
+# REVIEWS
+# ════════════════════════════════════════════════════════════════
+
+### 12. Lister les reviews (page 1)
+GET {{baseUrl}}/api/reviews?page=1&limit=10
+Accept: application/json
+
+###
+
+### 13. Lister les reviews (page 2)
+GET {{baseUrl}}/api/reviews?page=2&limit=5
+Accept: application/json
+
+###
+
+### 14. Récupérer une review par ID (remplacez l'ID)
+GET {{baseUrl}}/api/reviews/00000000-0000-0000-0000-000000000000
+Accept: application/json
+
+###
+
+### 15. Review inexistante → doit retourner HTTP 404
+GET {{baseUrl}}/api/reviews/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+Accept: application/json
+
+###
+
+### 16. Supprimer une review (remplacez l'ID)
+DELETE {{baseUrl}}/api/reviews/00000000-0000-0000-0000-000000000000
+Accept: application/json
+
+###
+
+# ════════════════════════════════════════════════════════════════
+# SERVICE PYTHON AST (appel direct)
+# ════════════════════════════════════════════════════════════════
+
+### 17. Analyse AST Python directe
+POST {{pythonUrl}}/analyze
+Content-Type: application/json
+
+{
+  "language": "python",
+  "code": "password = 'secret'\ndef foo(a,b,c,d,e,f,g,h): pass\ntry:\n  x = 1\nexcept:\n  pass\nif x == True: pass\nif x == None: pass\n"
+}
+
+###
+
+### 18. Analyse AST JavaScript directe (heuristiques)
+POST {{pythonUrl}}/analyze
+Content-Type: application/json
+
+{
+  "language": "javascript",
+  "code": "const token = 'Bearer abc123def456';\n// TODO: fix injection\nconst q = 'SELECT * FROM users WHERE id=' + userId;\n"
+}
+
+###
+
+# ════════════════════════════════════════════════════════════════
+# ROBUSTESSE – MODELES ET CLÉS GROQ
+# ════════════════════════════════════════════════════════════════
+
+### 19. Simulé : modèle décommissionné (lire le warning dans la réponse)
+# COMMENT SIMULER :
+# Dans .env, mettez temporairement :
+#   GROQ_MODEL=llama3-70b-8192          ← modèle décommissionné
+#   GROQ_MODEL_FALLBACK=llama-3.1-8b-instant
+# Puis relancez : docker compose up --build
+# Attendu : HTTP 200 avec issues depuis le fallback + warnings contenant "décommissionné"
+#
+# Test à lancer après avoir défini GROQ_MODEL sur un vieux modèle :
+POST {{baseUrl}}/api/analyze
+Content-Type: application/json
+
+{
+  "code": "def hello():\n    print('world')",
+  "language": "python",
+  "filename": "test_decommissioned.py"
+}
+
+###
+
+### 20. Clé API Groq invalide → warning clair, issues vides, HTTP 200 (pas de crash)
+# COMMENT SIMULER :
+# Dans .env, mettez temporairement :
+#   GROQ_API_KEY=sk-invalid-key-for-test
+# Puis relancez : docker compose up --build
+# Attendu : HTTP 200, issues=[] (AST seulement), warnings=["Erreur API Groq..."]
+#
+# Test (valide avec la vraie clé, vérifiez que le backend ne crashe pas) :
+GET {{baseUrl}}/health
+Accept: application/json
+
+###
+
+### 21. Analyse Python nominale – vérifier le nouveau modèle llama-3.1-70b-versatile
+POST {{baseUrl}}/api/analyze
+Content-Type: application/json
+
+{
+  "code": "password = 'admin'\ntry:\n    x = 1/0\nexcept:\n    pass",
+  "language": "python",
+  "filename": "regression_model.py"
+}
+
+###

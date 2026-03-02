@@ -1,0 +1,28 @@
+{
+  "name": "polycheck-backend",
+  "version": "1.0.0",
+  "description": "Backend API PolyCheck - Analyse de code multi-langages",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "mysql2": "^3.6.5",
+    "groq-sdk": "^0.3.3",
+    "axios": "^1.6.2",
+    "crypto": "^1.0.1",
+    "express-validator": "^7.0.1",
+    "morgan": "^1.10.0",
+    "helmet": "^7.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

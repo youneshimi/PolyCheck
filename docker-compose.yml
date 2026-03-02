@@ -1,0 +1,128 @@
+services:
+  # ─── MySQL ────────────────────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: polycheck_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "root",
+          "-p${MYSQL_ROOT_PASSWORD}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - polycheck_net
+
+  # ─── phpMyAdmin ───────────────────────────────────────────────────────────
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: polycheck_phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_USER: ${MYSQL_USER}
+      PMA_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    ports:
+      - "8080:80"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - polycheck_net
+
+  # ─── Python AST Service ───────────────────────────────────────────────────
+  python-service:
+    build:
+      context: ./python-service
+      dockerfile: Dockerfile
+    container_name: polycheck_python
+    restart: unless-stopped
+    environment:
+      SUPPORTED_LANGUAGES: ${SUPPORTED_LANGUAGES}
+      MAX_FILE_SIZE_BYTES: ${MAX_FILE_SIZE_BYTES}
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - polycheck_net
+
+  # ─── Backend Node.js ──────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: polycheck_backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV}
+      BACKEND_PORT: ${BACKEND_PORT}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GROQ_MODEL: ${GROQ_MODEL}
+      GROQ_MODEL_FALLBACK: ${GROQ_MODEL_FALLBACK}
+      GROQ_TIMEOUT_MS: ${GROQ_TIMEOUT_MS}
+      MYSQL_HOST: ${MYSQL_HOST}
+      MYSQL_PORT: ${MYSQL_PORT}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      PYTHON_SERVICE_URL: ${PYTHON_SERVICE_URL}
+      PYTHON_TIMEOUT_MS: ${PYTHON_TIMEOUT_MS}
+      MAX_FILE_SIZE_BYTES: ${MAX_FILE_SIZE_BYTES}
+      SUPPORTED_LANGUAGES: ${SUPPORTED_LANGUAGES}
+    ports:
+      - "3001:3001"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      python-service:
+        condition: service_healthy
+    networks:
+      - polycheck_net
+
+  # ─── Frontend Vite + React ────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3001}
+    container_name: polycheck_frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - polycheck_net
+
+volumes:
+  mysql_data:
+
+networks:
+  polycheck_net:
+    driver: bridge
