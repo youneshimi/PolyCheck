@@ -302,3 +302,29 @@ Content-Type: application/json
 }
 
 ###
+
+# ════════════════════════════════════════════════════════════════
+# CANONICALISATION GROQ BRUIT
+# ════════════════════════════════════════════════════════════════
+
+### 25. Payload bruité : API_SECRET + os.system + divide/except + divide(10,0)
+# Attendu :
+#   HTTP 200
+#   summary.total <= 12 (cap)
+#   count(rule=="hardcoded-secret") == 1  (toutes variantes fusionnées sur même ligne)
+#   count(rule=="shell-injection")  == 1  (os.system/call/function fusionnés)
+#   count(rule=="division-by-zero") <= 2  (1 par fonction avec division distincte)
+#   count(rule=="bare-except")      <= 2  (1 par bloc try/except, fenêtre ±3)
+#   summary.total_before_cap > summary.total → dédup effectif
+#   Les règles brutes non-canoniques (secret, function, call, exception)
+#   doivent être absentes si le message confirme l'appartenance à un canonique
+POST {{baseUrl}}/api/analyze
+Content-Type: application/json
+
+{
+  "code": "import os\n\nAPI_SECRET = 'sk-live-abcdef1234567'\n\ndef run_cmd(cmd):\n    os.system(cmd)\n\ndef divide(a, b):\n    try:\n        result = a / b\n        return result\n    except:\n        pass\n\ndef safe_div(x, y):\n    try:\n        return x / y\n    except:\n        return 0\n\nvalue = divide(10, 0)\n",
+  "language": "python",
+  "filename": "noisy_full.py"
+}
+
+###

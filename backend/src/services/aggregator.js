@@ -26,38 +26,65 @@ function normalizeMessage(msg) {
 
 /**
  * Canonnise un identifiant de règle pour fusionner les variantes cross-catégories.
- * Accepte optionnellement le message pour désambiguïer les règles génériques
- * comme "injection" (eval injection vs SQL injection vs shell injection).
+ * Accepte le message pour désambiguïer les règles génériques que Groq retourne.
  *
- * Exemples :
- *   eval_insecure, eval-injection, eval-use         → "eval"
- *   "injection" + message mentionne eval            → "eval"
- *   shell_injection, shell-injection, os-system-*   → "shell-injection"
- *   "injection" + message mentionne shell/os.system → "shell-injection"
- *   hardcoded-secret, hardcoded-password            → "hardcoded-secret"
- *   sql-injection, sql_injection                    → "sql-injection"
+ * Ordre des tests : priorité aux préfixes structurels non-ambiguës en premier,
+ * puis désambiguation par message pour les règles génériques (secret, call, exception...).
  */
 function canonicalizeRule(rule, message = '') {
     const r = (rule || '').toLowerCase().replace(/_/g, '-');
     const m = (message || '').toLowerCase();
 
+    // ── eval ──────────────────────────────────────────────────────────────────
     if (r.startsWith('eval') ||
         (r === 'injection' && (m.includes('eval') || m.includes('dynamic code') || m.includes('dynamic execution')))) {
         return 'eval';
     }
+
+    // ── shell-injection (préfixes structurels non-ambiguës) ───────────────────
     if (r.startsWith('shell') ||
         r.startsWith('os-command') ||
         r.startsWith('command-injection') ||
         r.startsWith('os-system') ||
         r === 'os.system' ||
+        r.startsWith('exec') ||
+        r.startsWith('spawn') ||
+        r === 'fonctionsystem' ||
         (r === 'injection' && (m.includes('shell') || m.includes('os.system') || m.includes('subprocess') || m.includes('command')))) {
         return 'shell-injection';
     }
-    if (r.startsWith('hardcoded') || r.startsWith('hard-coded')) return 'hardcoded-secret';
+    // shell-injection par message (règles génériques : function, call, command)
+    if ((r === 'function' || r === 'call' || r === 'command') &&
+        (m.includes('os.system') || m.includes('system(') || m.includes('subprocess') ||
+         m.includes('exec(') || m.includes('shell') || m.includes('spawn'))) {
+        return 'shell-injection';
+    }
+
+    // ── hardcoded-secret (préfixes structurels) ─────────────────────────────
+    if (r.startsWith('hardcoded') || r.startsWith('hard-coded') ||
+        r === 'secret' || r === 'api-secret') {
+        return 'hardcoded-secret';
+    }
+    // hardcoded-secret par message ou préfixe ambigu (credential*, token*, key*)
+    if ((r.startsWith('credential') || r.startsWith('token') || r.startsWith('key') ||
+         r === 'password' || r === 'api') &&
+        (m.includes('hardcoded') || m.includes('hard-coded') || m.includes('secret') ||
+         m.includes('api') || m.includes('token') || m.includes('key') ||
+         m.includes('credential') || m.includes('password') || m.includes('sk-'))) {
+        return 'hardcoded-secret';
+    }
+    // cas générique : tout message mentionnant une clé hardcodée
+    if (m.includes('hardcoded') || m.includes('hard-coded') ||
+        (m.includes('api') && (m.includes('secret') || m.includes('key') || m.includes('token'))) ||
+        (m.includes('password') && m.includes('hardcoded'))) {
+        return 'hardcoded-secret';
+    }
+
+    // ── sql-injection ─────────────────────────────────────────────────────────
     if (r.startsWith('sql')) return 'sql-injection';
-    // Variantes bare-except : bare-except*, bareexcept*, emptyexcept*, broad-except*,
-    // broadexception*, generic-except*, empty-except*, except* (hors "exception"),
-    // e722 (pycodestyle: do not use bare 'except')
+
+    // ── bare-except ───────────────────────────────────────────────────────────
+    // Préfixes structurels
     if (r.startsWith('bare-except') || r.startsWith('bareexcept') ||
         r.startsWith('emptyexcept') || r.startsWith('empty-except') ||
         r.startsWith('broad-except') || r.startsWith('generic-except') ||
@@ -66,12 +93,30 @@ function canonicalizeRule(rule, message = '') {
         (r.startsWith('except') && r !== 'exception')) {
         return 'bare-except';
     }
-    // Variantes division par zéro : division*, zero-division*, divide-by-zero*, zerodivision*
+    // exception générique : bare-except si message parle d'un except: vide/large
+    if (r === 'exception' &&
+        (m.includes('bare except') || m.includes('bare-except') || m.includes('empty except') ||
+         m.includes('broad except') || m.includes('generic except') ||
+         m.includes('except:') || m.includes('pass') || m.includes('sauf') ||
+         m.includes('attrape tout') || m.includes('catch-all'))) {
+        return 'bare-except';
+    }
+
+    // ── division-by-zero ──────────────────────────────────────────────────────
+    // Préfixes structurels
     if (r.startsWith('division') || r.startsWith('zero-division') ||
         r.startsWith('zerodivision') || r.startsWith('divide-by-zero') ||
         r.startsWith('zero-divide')) {
         return 'division-by-zero';
     }
+    // call ou exception générique si message parle de ZeroDivisionError ou division
+    if ((r === 'call' || r === 'exception') &&
+        (m.includes('zerodivisionerror') || m.includes('zero division') ||
+         m.includes('divide(') || m.includes('division par zéro') ||
+         m.includes('division by zero'))) {
+        return 'division-by-zero';
+    }
+
     return r;
 }
 
@@ -97,12 +142,14 @@ const FUZZY_LINE_RULES = new Set(['bare-except', 'division-by-zero']);
 /**
  * Génère la clé de déduplication exacte d'une issue (non-fuzzy).
  * - Catégorie EXCLUE : fusion cross-catégories (security:eval ↔ bug:eval).
- * - Message exclu pour les règles canoniques (descriptions Groq divergent).
+ * - Message EXCLU pour toutes les règles : deux prompts Groq (bug/security/style)
+ *   décrivent la même construction avec des mots différents → canonRule+line suffit.
+ *   Seules les règles hors CANONICAL_RULES ET avec un message très différent
+ *   mériteraient le message dans la clé, mais en pratique c'est généralement du bruit.
  */
 function dedupKey(issue, canonRule) {
     const line = issue.line != null ? String(issue.line) : 'null';
-    const normMsg = CANONICAL_RULES.has(canonRule) ? '' : normalizeMessage(issue.message);
-    return `${canonRule}|${line}|${normMsg}`;
+    return `${canonRule}|${line}`;
 }
 
 /**
