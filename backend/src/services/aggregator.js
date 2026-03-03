@@ -55,10 +55,13 @@ function canonicalizeRule(rule, message = '') {
     }
     if (r.startsWith('hardcoded') || r.startsWith('hard-coded')) return 'hardcoded-secret';
     if (r.startsWith('sql')) return 'sql-injection';
-    // Variantes bare-except : bare-except*, bareexcept*, broad-except*, broadexception*, generic-except*, empty-except*, except* (hors "exception")
+    // Variantes bare-except : bare-except*, bareexcept*, emptyexcept*, broad-except*,
+    // broadexception*, generic-except*, empty-except*, except* (hors "exception"),
+    // e722 (pycodestyle: do not use bare 'except')
     if (r.startsWith('bare-except') || r.startsWith('bareexcept') ||
+        r.startsWith('emptyexcept') || r.startsWith('empty-except') ||
         r.startsWith('broad-except') || r.startsWith('generic-except') ||
-        r.startsWith('empty-except') ||
+        r === 'e722' ||
         (r.startsWith('broad') && (r.includes('except') || r.includes('exception'))) ||
         (r.startsWith('except') && r !== 'exception')) {
         return 'bare-except';
@@ -75,7 +78,7 @@ function canonicalizeRule(rule, message = '') {
 /**
  * Règles pour lesquelles le message est exclu de la clé de dédup.
  * Groq peut retourner des descriptions différentes selon le prompt (bug/security/style)
- * → seuls canonRule + line_bucket suffisent à identifier le doublon.
+ * → seuls canonRule + ligne exacte suffisent à identifier le doublon.
  */
 const CANONICAL_RULES = new Set([
     'eval', 'shell-injection', 'hardcoded-secret', 'sql-injection',
@@ -83,38 +86,41 @@ const CANONICAL_RULES = new Set([
 ]);
 
 /**
- * Règles pour lesquelles on applique un bucketing de ligne (fuzzy ±3).
- * Uniquement pour les règles "bruyantes" dont la ligne peut varier de ±1–3
- * selon le prompt Groq. On N'applique PAS le fuzzy à eval/shell/hardcoded
- * pour éviter de fusionner deux occurrences distinctes sur des lignes proches.
+ * Règles soumises à la dédup par fenêtre glissante ±3 lignes.
+ * UNIQUEMENT ces règles : Groq peut reporter la même construction
+ * sur try: (ligne N) ou except: (ligne N+3..5) selon le prompt.
+ * eval/shell/hardcoded gardent la ligne EXACTE pour ne pas fusionner
+ * deux occurrences distinctes proches.
  */
 const FUZZY_LINE_RULES = new Set(['bare-except', 'division-by-zero']);
 
-/** Bucket de ligne : regroupe par tranches de 8 lignes (couvre un bloc try/except typique).
- *  0-7 → 0, 8-15 → 8, 16-23 → 16, ...
- *  Groq peut reporter bare-except sur la ligne `try:` ou `except:` selon le prompt
- *  (ex: l2 et l5 pour le même bloc → même bucket 0). */
-function lineBucket(line) {
-    const n = Number(line) || 0;
-    return String(Math.floor(n / 8) * 8);
+/**
+ * Génère la clé de déduplication exacte d'une issue (non-fuzzy).
+ * - Catégorie EXCLUE : fusion cross-catégories (security:eval ↔ bug:eval).
+ * - Message exclu pour les règles canoniques (descriptions Groq divergent).
+ */
+function dedupKey(issue, canonRule) {
+    const line = issue.line != null ? String(issue.line) : 'null';
+    const normMsg = CANONICAL_RULES.has(canonRule) ? '' : normalizeMessage(issue.message);
+    return `${canonRule}|${line}|${normMsg}`;
 }
 
 /**
- * Génère la clé de déduplication d'une issue.
- * - Catégorie EXCLUE : pour fusionner les doublons cross-catégories.
- * - Règles canoniques : message exclu (descriptions Groq divergent selon prompt).
- * - Règles fuzzy (bare-except, division-by-zero) : ligne buckétisée (±3 lignes).
+ * Fusionne une issue entrante dans une issue existante (mutation de existing).
+ * Règles : catégorie max, sévérité max, source fusionnée, suggestion/message les plus longs.
+ * La ligne est mise à min(existing.line, incoming.line) pour stabiliser l'affichage.
  */
-function dedupKey(issue) {
-    const canonRule = canonicalizeRule(issue.rule, issue.message);
-    const rawLine = issue.line != null ? issue.line : null;
-    const lineKey = rawLine === null
-        ? 'null'
-        : FUZZY_LINE_RULES.has(canonRule)
-            ? lineBucket(rawLine)
-            : String(rawLine);
-    const normMsg = CANONICAL_RULES.has(canonRule) ? '' : normalizeMessage(issue.message);
-    return `${canonRule}|${lineKey}|${normMsg}`;
+function mergeInto(existing, incoming) {
+    existing.category = maxCategory(existing.category, incoming.category);
+    existing.severity = maxSeverity(existing.severity, incoming.severity);
+    existing.source = mergeSources(existing.source, incoming.source);
+    existing.suggestion = longestString(existing.suggestion, incoming.suggestion);
+    if (incoming.line != null && (existing.line == null || incoming.line < existing.line)) {
+        existing.line = incoming.line;
+    }
+    if ((incoming.message || '').length > (existing.message || '').length) {
+        existing.message = incoming.message;
+    }
 }
 
 /**
@@ -186,39 +192,67 @@ function aggregateAndPrioritize(groqResults, astIssues = []) {
         ...(astIssues || []),
     ];
 
-    // ── 2. Déduplication intelligente par clé normalisée ────────────────────
-    // On conserve une Map clé → issue fusionnée.
-    const deduped = new Map();
+    // ── 2a. Dédup exacte (règles non-fuzzy) + routage fuzzy ─────────────────
+    // exactDeduped : Map<key, issue> pour eval, shell-injection, hardcoded-secret, etc.
+    // fuzzyQueue   : issues à traiter par fenêtre glissante ±3
+    const exactDeduped = new Map();
+    const fuzzyQueue = [];
 
     for (const issue of all) {
-        const key = dedupKey(issue);
+        const canonRule = canonicalizeRule(issue.rule, issue.message);
+        const normalized = { ...issue, rule: canonRule };
 
-        if (!deduped.has(key)) {
-            // Première occurrence : stocker avec règle canonisée
-            deduped.set(key, { ...issue, rule: canonicalizeRule(issue.rule, issue.message) });
+        if (FUZZY_LINE_RULES.has(canonRule)) {
+            fuzzyQueue.push(normalized);
         } else {
-            // Doublon (exact ou fuzzy) détecté : fusion intelligente
-            const existing = deduped.get(key);
-            // Priorité catégorie : security > bug > style
-            existing.category = maxCategory(existing.category, issue.category);
-            existing.severity = maxSeverity(existing.severity, issue.severity);
-            existing.source = mergeSources(existing.source, issue.source);
-            existing.suggestion = longestString(existing.suggestion, issue.suggestion);
-            // Ligne = min(line) pour stabiliser l'affichage sur la première occurrence
-            if (issue.line != null && (existing.line == null || issue.line < existing.line)) {
-                existing.line = issue.line;
-            }
-            // Message le plus long (plus informatif)
-            if ((issue.message || '').length > (existing.message || '').length) {
-                existing.message = issue.message;
+            const key = dedupKey(issue, canonRule);
+            if (!exactDeduped.has(key)) {
+                exactDeduped.set(key, normalized);
+            } else {
+                mergeInto(exactDeduped.get(key), normalized);
             }
         }
     }
 
-    // ── 3. Tri : sévérité desc → catégorie desc → ligne asc ─────────────────
-    const sorted = [...deduped.values()].sort(issueComparator);
+    // ── 2b. Fenêtre glissante ±3 (bare-except, division-by-zero) ───────────
+    // seenByCanon : Map<canonRule, Array<issue>>
+    // Tri par ligne d'abord : garantit un traitement déterministe et optimise
+    // les fusions (les lignes proches sont voisines dans la liste).
+    // Pour chaque issue, cherche une existante avec |line_a - line_b| <= 3.
+    // Si trouvée → fusion. Sinon → nouvelle entrée indépendante.
+    const seenByCanon = new Map();
+    fuzzyQueue.sort((a, b) => (a.line || 0) - (b.line || 0));
 
-    // ── 4. Cap MVP : max MAX_ISSUES issues pour éviter le bruit ─────────────
+    for (const issue of fuzzyQueue) {
+        const canonRule = issue.rule; // déjà canonisé
+        if (!seenByCanon.has(canonRule)) {
+            seenByCanon.set(canonRule, []);
+        }
+        const list = seenByCanon.get(canonRule);
+        const line = issue.line != null ? Number(issue.line) : null;
+
+        // Cherche une issue existante dans la fenêtre ±3
+        const nearby = (line !== null)
+            ? list.find(ex => ex.line != null && Math.abs(Number(ex.line) - line) <= 3)
+            : null;
+
+        if (nearby) {
+            mergeInto(nearby, issue);
+        } else {
+            list.push({ ...issue });
+        }
+    }
+
+    // ── 3. Combinaison des deux passes ───────────────────────────────────────
+    const combined = [
+        ...exactDeduped.values(),
+        ...[...seenByCanon.values()].flat(),
+    ];
+
+    // ── 4. Tri : sévérité desc → catégorie desc → ligne asc ─────────────────
+    const sorted = combined.sort(issueComparator);
+
+    // ── 5. Cap MVP : max MAX_ISSUES issues ───────────────────────────────────
     const capped = sorted.slice(0, MAX_ISSUES);
 
     // ── 5. Résumé statistique (basé sur les issues capées) ───────────────────

@@ -283,13 +283,15 @@ Content-Type: application/json
 # FUZZY LINE DEDUPE
 # ════════════════════════════════════════════════════════════════
 
-### 24. div(10,0) + bare-except → bare-except pas dupliqué par prompt, total <= 12
+### 24. div(10,0) + bare-except → fenêtre glissante ±3, total <= 10
 # Attendu :
 #   HTTP 200
-#   summary.total <= 12
-#   "bare-except" apparaît au maximum 2 fois (1 par bloc try/except, pas 4x pour 4 prompts)
-#   La règle "bare-except" est canonisée (pas bareexcept/broadexception séparés)
-#   summary.total_before_cap < total_brut_sans_dedup
+#   summary.total <= 10
+#   count(rule=="bare-except") <= 3 (fenêtre ±3 stricte : si try: l2 et except: l6
+#     sont dans le même bloc mais à 4 lignes d'écart, ils forment 2 groupes distincts)
+#   Toutes les variantes canonisées en "bare-except" (bareexcept, e722, emptyexcept…)
+#   rule "division-by-zero" si Groq détecte la div/0
+#   summary.total_before_cap < total brut sans dédup
 POST {{baseUrl}}/api/analyze
 Content-Type: application/json
 
