@@ -8,6 +8,10 @@ const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 const GROQ_MODEL_FALLBACK = process.env.GROQ_MODEL_FALLBACK || 'llama-3.1-8b-instant';
 const GROQ_TIMEOUT_MS = parseInt(process.env.GROQ_TIMEOUT_MS || '30000', 10);
 
+// ─── Configuration RAG ────────────────────────────────────────────────────────
+const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || 'http://python-service:8000';
+const RAG_ENABLED = process.env.RAG_ENABLED !== 'false'; // RAG activé par défaut
+
 let groqClient = null;
 
 function getGroqClient() {
@@ -31,6 +35,79 @@ function isDecommissionedError(err) {
     return code === 'model_decommissioned'
         || msg.includes('decommissioned')
         || msg.includes('model_decommissioned');
+}
+
+// ─── Service RAG (Retrieval Augmented Generation) ────────────────────────────
+
+/**
+ * Récupère les patterns de bonnes pratiques depuis le service Python RAG.
+ * @param {string} language - Langage de programmation (python, javascript, etc.)
+ * @param {string} code - Code à analyser
+ * @param {string} category - Catégorie (bug, security, style)
+ * @returns {Promise<Array>} Liste des patterns pertinents ou tableau vide si erreur
+ */
+async function fetchRAGPatterns(language, code, category) {
+    if (!RAG_ENABLED) {
+        return [];
+    }
+
+    try {
+        const fetch = (await import('node-fetch')).default;
+
+        const response = await fetch(`${PYTHON_SERVICE_URL}/rag/retrieve`, {
+            method: 'POST',
+            timeout: 5000,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                code: code.substring(0, 1000), // Limiter pour performance
+                language,
+                category,
+            }),
+        });
+
+        if (!response.ok) {
+            console.warn(`[RAG] Erreur ${response.status} du service Python`);
+            return [];
+        }
+
+        const data = await response.json();
+
+        if (!Array.isArray(data.patterns)) {
+            console.warn('[RAG] Réponse invalide du service Python');
+            return [];
+        }
+
+        console.log(`[RAG] ${data.patterns.length} patterns trouvés pour ${language}/${category}`);
+        return data.patterns;
+    } catch (err) {
+        console.warn(`[RAG] Impossible de contacter le service Python (${PYTHON_SERVICE_URL}) :`, err.message);
+        return [];
+    }
+}
+
+/**
+ * Augmente le prompt original avec les patterns trouvés by RAG.
+ * @param {string} basePrompt - Prompt original
+ * @param {Array} patterns - Patterns trouvés par RAG
+ * @returns {string} Prompt augmenté
+ */
+function augmentPromptWithPatterns(basePrompt, patterns) {
+    if (!patterns || patterns.length === 0) {
+        return basePrompt;
+    }
+
+    let augmented = basePrompt + '\n\n# ─── RÉFÉRENCES DE BONNES PRATIQUES (RAG-Augmented) ───\n';
+    augmented += 'Tenez compte de ces patterns pertinents dans votre analyse :\n\n';
+
+    for (const pattern of patterns) {
+        augmented += `📌 **${pattern.rule}** (Règle: ${pattern.pattern})\n`;
+        augmented += `   - Catégorie: ${pattern.category} | Sévérité: ${pattern.severity}\n`;
+        augmented += `   - Pertinence: ${(pattern.similarity_score * 100).toFixed(0)}% confiance\n\n`;
+    }
+
+    augmented += '⚠️ Si des problèmes correspondent à ces patterns, mentionnez le rule ID dans votre réponse.\n';
+
+    return augmented;
 }
 
 // ─── Prompts par catégorie ────────────────────────────────────────────────────
@@ -207,7 +284,20 @@ async function callGroqWithModel(client, model, prompt, category) {
 
 async function callGroq(language, code, category) {
     const client = getGroqClient();
-    const prompt = PROMPTS[category](language, code);
+    let prompt = PROMPTS[category](language, code);
+
+    // 🔄 RAG: Enrichir le prompt avec les patterns trouvés
+    if (RAG_ENABLED) {
+        try {
+            const patterns = await fetchRAGPatterns(language, code, category);
+            if (patterns.length > 0) {
+                prompt = augmentPromptWithPatterns(prompt, patterns);
+            }
+        } catch (err) {
+            // RAG est optionnel, pas de blocage
+            console.warn('[RAG] Erreur optionnelle ignorée, analyse continue sans RAG');
+        }
+    }
 
     // Tentative 1 : modèle principal
     const first = await callGroqWithModel(client, GROQ_MODEL, prompt, category);
