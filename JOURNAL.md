@@ -50,6 +50,36 @@
 
 ---
 
+## [2026-03-09] – Intégration RAG & Knowledge Base Management
+
+### ✅ Réalisé
+- [x] Ajouter dépendances RAG (chromadb, sentence-transformers)
+- [x] Créer ragService.py avec base de 20+ patterns
+- [x] Implémenter Retrieval patterns similaires (Chroma)
+- [x] Ajouter endpoints `/rag/retrieve` et `/rag/stats`
+- [x] Intégrer RAG dans groqService.js (augmentation prompts)
+- [x] Ajouter configuration RAG (.env)
+- [x] Implémenter CRUD patterns (`list`, `get`, `create`, `update`, `delete`)
+- [x] Ajouter endpoints `/rag/patterns*` pour KB management
+- [x] Documentation complète (RAG_ARCHITECTURE.md + KB_MANAGEMENT_API.md)
+- [x] Smoke tests (tests/knowledge-base.http)
+
+### 🔧 En cours
+- _Aucun_
+
+### ❌ Bloquants
+- _Aucun_
+
+### 📝 Notes
+- RAG est optionnel (RAG_ENABLED=true par défaut, peut être désactivé)
+- Service Python exécute patterns embedding = ~400ms par requête
+- Patterns base est persistante via Chroma (résiliente redémarrage)
+- Modèle embeddings lightweight: all-MiniLM-L6-v2 (22MB)
+- CORS mise à jour pour PUT/DELETE
+- Architecture : Code → RAG Service → Groq (augmenté) → Résultats
+
+---
+
 ## Décisions techniques
 
 | Date         | Décision                                 | Raison                                  |

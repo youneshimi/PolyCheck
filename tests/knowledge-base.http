@@ -1,0 +1,61 @@
+### Knowledge Base Management - Smoke Tests
+### Tester les endpoints CRUD de la base de patterns
+
+# Variables
+@host = http://localhost:8000
+@newPatternId = custom_test_pattern_001
+
+### 1. GET /rag/stats - Vérifier la base
+GET {{host}}/rag/stats
+
+### 2. GET /rag/patterns - Lister tous les patterns
+GET {{host}}/rag/patterns
+
+### 3. GET /rag/patterns/{id} - Obtenir un pattern spécifique
+GET {{host}}/rag/patterns/py_001
+
+### 4. POST /rag/patterns - Créer un nouveau pattern
+POST {{host}}/rag/patterns
+Content-Type: application/json
+
+{
+  "id": "{{newPatternId}}",
+  "language": "python",
+  "pattern": "Always use context managers for file operations",
+  "category": "style",
+  "severity": "high",
+  "rule": "FILE_CONTEXT_MANAGER_CUSTOM",
+  "bad_example": "f = open('file.txt')\ndata = f.read()\nf.close()",
+  "good_example": "with open('file.txt') as f:\n    data = f.read()"
+}
+
+### 5. GET /rag/patterns/{id} - Vérifier le pattern créé
+GET {{host}}/rag/patterns/{{newPatternId}}
+
+### 6. PUT /rag/patterns/{id} - Mettre à jour le pattern
+PUT {{host}}/rag/patterns/{{newPatternId}}
+Content-Type: application/json
+
+{
+  "severity": "critical",
+  "rule": "FILE_CONTEXT_MANAGER_CRITICAL"
+}
+
+### 7. POST /rag/retrieve - Rechercher patterns pertinents
+POST {{host}}/rag/retrieve
+Content-Type: application/json
+
+{
+  "code": "f = open('test.txt')\ndata = f.read()\nf.close()",
+  "language": "python",
+  "category": "style"
+}
+
+### 8. DELETE /rag/patterns/{id} - Supprimer le pattern test
+DELETE {{host}}/rag/patterns/{{newPatternId}}
+
+### 9. GET /rag/patterns/{id} - Vérifier la suppression (doit retourner 404)
+GET {{host}}/rag/patterns/{{newPatternId}}
+
+### 10. GET /rag/stats - Vérifier le nombre final de patterns
+GET {{host}}/rag/stats

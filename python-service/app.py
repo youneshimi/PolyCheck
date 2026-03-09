@@ -18,7 +18,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
 
 # Importer le service RAG
-from ragService import initialize_rag, retrieve_relevant_patterns, augment_prompt_with_patterns
+from ragService import (
+    initialize_rag,
+    retrieve_relevant_patterns,
+    augment_prompt_with_patterns,
+    list_all_patterns,
+    get_pattern,
+    add_pattern,
+    update_pattern,
+    delete_pattern,
+)
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 MAX_FILE_SIZE_BYTES = int(os.getenv("MAX_FILE_SIZE_BYTES", "51200"))
@@ -50,7 +59,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -423,9 +432,117 @@ class PatternItem(BaseModel):
     similarity_score: float
 
 
+class PatternCreateRequest(BaseModel):
+    id: str
+    language: str
+    pattern: str
+    category: str
+    severity: str
+    rule: str
+    bad_example: Optional[str] = None
+    good_example: Optional[str] = None
+
+
+class PatternUpdateRequest(BaseModel):
+    language: Optional[str] = None
+    pattern: Optional[str] = None
+    category: Optional[str] = None
+    severity: Optional[str] = None
+    rule: Optional[str] = None
+    bad_example: Optional[str] = None
+    good_example: Optional[str] = None
+
+
 class RAGResponse(BaseModel):
     patterns: List[PatternItem]
     augmented_context: str
+
+
+
+
+# ─── Routes CRUD pour la gestion de la Knowledge Base ──────────────────────────
+
+@app.get("/rag/patterns", response_model=dict)
+async def list_patterns():
+    """
+    Liste tous les patterns de la base de connaissances.
+    """
+    patterns = list_all_patterns()
+    return {
+        "status": "ok",
+        "total": len(patterns),
+        "patterns": patterns
+    }
+
+
+@app.get("/rag/patterns/{pattern_id}", response_model=dict)
+async def get_single_pattern(pattern_id: str):
+    """
+    Récupère un pattern spécifique par son ID.
+    """
+    pattern = get_pattern(pattern_id)
+    
+    if not pattern:
+        raise HTTPException(status_code=404, detail=f"Pattern '{pattern_id}' non trouvé")
+    
+    return {
+        "status": "ok",
+        "pattern": pattern
+    }
+
+
+@app.post("/rag/patterns", response_model=dict)
+async def create_pattern(request: PatternCreateRequest):
+    """
+    Crée un nouveau pattern dans la base de connaissances.
+    
+    Exemple:
+    {
+      "id": "custom_001",
+      "language": "python",
+      "pattern": "Use logging instead of print",
+      "category": "style",
+      "severity": "low",
+      "rule": "LOGGING_PREFERRED",
+      "bad_example": "print(debug_info)",
+      "good_example": "logger.debug(debug_info)"
+    }
+    """
+    result = add_pattern(request.dict())
+    
+    if result["status"] != "ok":
+        raise HTTPException(status_code=400, detail=result["message"])
+    
+    return result
+
+
+@app.put("/rag/patterns/{pattern_id}", response_model=dict)
+async def update_single_pattern(pattern_id: str, request: PatternUpdateRequest):
+    """
+    Met à jour un pattern existant.
+    
+    Seuls les champs fournis seront mis à jour.
+    """
+    data = request.dict(exclude_unset=True)
+    result = update_pattern(pattern_id, data)
+    
+    if result["status"] != "ok":
+        raise HTTPException(status_code=404, detail=result["message"])
+    
+    return result
+
+
+@app.delete("/rag/patterns/{pattern_id}", response_model=dict)
+async def delete_single_pattern(pattern_id: str):
+    """
+    Supprime un pattern de la base de connaissances.
+    """
+    result = delete_pattern(pattern_id)
+    
+    if result["status"] != "ok":
+        raise HTTPException(status_code=404, detail=result["message"])
+    
+    return result
 
 
 @app.post("/rag/retrieve", response_model=RAGResponse)

@@ -312,3 +312,228 @@ def augment_prompt_with_patterns(base_prompt: str, patterns: List[Dict]) -> str:
     augmented += "\nUtilisez ces patterns pour enrichir votre analyse.\n"
     
     return augmented
+
+
+# ─── CRUD Operations pour KB Management ─────────────────────────────────────
+
+def list_all_patterns() -> List[Dict]:
+    """
+    Liste tous les patterns de la collection.
+    
+    Returns:
+        Liste de tous les patterns avec métadonnées
+    """
+    
+    if not collection:
+        return []
+    
+    try:
+        all_data = collection.get(include=["metadatas", "documents", "embeddings"])
+        
+        patterns = []
+        for i, pattern_id in enumerate(all_data['ids']):
+            metadata = all_data['metadatas'][i]
+            patterns.append({
+                "id": pattern_id,
+                "pattern": metadata.get('pattern', ''),
+                "language": metadata.get('language', ''),
+                "category": metadata.get('category', ''),
+                "severity": metadata.get('severity', ''),
+                "rule": metadata.get('rule', ''),
+            })
+        
+        return patterns
+    except Exception as e:
+        print(f"❌ Erreur list_all_patterns: {str(e)}")
+        return []
+
+
+def get_pattern(pattern_id: str) -> Dict:
+    """
+    Récupère un pattern spécifique par son ID.
+    
+    Args:
+        pattern_id: ID unique du pattern
+    
+    Returns:
+        Données du pattern ou dict vide si non trouvé
+    """
+    
+    if not collection:
+        return {}
+    
+    try:
+        result = collection.get(ids=[pattern_id], include=["metadatas", "documents"])
+        
+        if not result['ids'] or len(result['ids']) == 0:
+            return {}
+        
+        metadata = result['metadatas'][0]
+        document = result['documents'][0] if result['documents'] else ""
+        
+        return {
+            "id": pattern_id,
+            "pattern": metadata.get('pattern', ''),
+            "language": metadata.get('language', ''),
+            "category": metadata.get('category', ''),
+            "severity": metadata.get('severity', ''),
+            "rule": metadata.get('rule', ''),
+            "document": document,
+        }
+    except Exception as e:
+        print(f"❌ Erreur get_pattern: {str(e)}")
+        return {}
+
+
+def add_pattern(pattern_data: Dict) -> Dict:
+    """
+    Ajoute un nouveau pattern à la collection.
+    
+    Args:
+        pattern_data: Dict avec
+            - id: ID unique
+            - language: Langage (python, javascript, all, etc.)
+            - pattern: Description du pattern
+            - category: bug, security, ou style
+            - severity: critical, high, medium, low
+            - rule: Identifiant court (e.g. "PEP8_COMPREHENSION")
+            - bad_example: (optionnel) Code à éviter
+            - good_example: (optionnel) Code recommandé
+    
+    Returns:
+        Dict avec status et pattern créé ou message d'erreur
+    """
+    
+    if not collection or not embedding_model:
+        return {"status": "error", "message": "RAG non initialisé"}
+    
+    try:
+        # Validation
+        required = ['id', 'language', 'pattern', 'category', 'severity', 'rule']
+        missing = [k for k in required if k not in pattern_data or not pattern_data[k]]
+        if missing:
+            return {"status": "error", "message": f"Champs manquants: {', '.join(missing)}"}
+        
+        # Vérifier que le pattern n'existe pas déjà
+        existing = collection.get(ids=[pattern_data['id']])
+        if existing['ids']:
+            return {"status": "error", "message": f"Pattern avec ID '{pattern_data['id']}' existe déjà"}
+        
+        # Créer le document texte pour embedding
+        doc_text = f"""
+        Language: {pattern_data['language']}
+        Pattern: {pattern_data['pattern']}
+        Category: {pattern_data['category']}
+        Rule: {pattern_data['rule']}
+        Bad: {pattern_data.get('bad_example', '')}
+        Good: {pattern_data.get('good_example', '')}
+        """
+        
+        # Ajouter à Chroma
+        collection.add(
+            ids=[pattern_data['id']],
+            documents=[doc_text],
+            metadatas=[{
+                "language": pattern_data['language'],
+                "pattern": pattern_data['pattern'],
+                "category": pattern_data['category'],
+                "severity": pattern_data['severity'],
+                "rule": pattern_data['rule']
+            }],
+            embeddings=[embedding_model.encode(doc_text).tolist()]
+        )
+        
+        print(f"✅ Pattern ajouté: {pattern_data['id']}")
+        return {"status": "ok", "message": "Pattern créé", "pattern": pattern_data}
+    
+    except Exception as e:
+        print(f"❌ Erreur add_pattern: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+
+def update_pattern(pattern_id: str, pattern_data: Dict) -> Dict:
+    """
+    Met à jour un pattern existant.
+    
+    Args:
+        pattern_id: ID du pattern à mettre à jour
+        pattern_data: Nouvelles données (mêmes champs que add_pattern)
+    
+    Returns:
+        Dict avec status et pattern mis à jour ou message d'erreur
+    """
+    
+    if not collection or not embedding_model:
+        return {"status": "error", "message": "RAG non initialisé"}
+    
+    try:
+        # Vérifier que le pattern existe
+        existing = collection.get(ids=[pattern_id])
+        if not existing['ids']:
+            return {"status": "error", "message": f"Pattern '{pattern_id}' non trouvé"}
+        
+        # Fusionner les données existantes avec les nouvelles
+        old_metadata = existing['metadatas'][0]
+        new_metadata = {
+            "language": pattern_data.get('language', old_metadata.get('language')),
+            "pattern": pattern_data.get('pattern', old_metadata.get('pattern')),
+            "category": pattern_data.get('category', old_metadata.get('category')),
+            "severity": pattern_data.get('severity', old_metadata.get('severity')),
+            "rule": pattern_data.get('rule', old_metadata.get('rule'))
+        }
+        
+        # Créer le nouveau document
+        doc_text = f"""
+        Language: {new_metadata['language']}
+        Pattern: {new_metadata['pattern']}
+        Category: {new_metadata['category']}
+        Rule: {new_metadata['rule']}
+        Bad: {pattern_data.get('bad_example', '')}
+        Good: {pattern_data.get('good_example', '')}
+        """
+        
+        # Mettre à jour dans Chroma
+        collection.update(
+            ids=[pattern_id],
+            documents=[doc_text],
+            metadatas=[new_metadata],
+            embeddings=[embedding_model.encode(doc_text).tolist()]
+        )
+        
+        print(f"✅ Pattern mis à jour: {pattern_id}")
+        return {"status": "ok", "message": "Pattern mis à jour", "pattern": new_metadata}
+    
+    except Exception as e:
+        print(f"❌ Erreur update_pattern: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
+
+def delete_pattern(pattern_id: str) -> Dict:
+    """
+    Supprime un pattern de la collection.
+    
+    Args:
+        pattern_id: ID du pattern à supprimer
+    
+    Returns:
+        Dict avec status et message
+    """
+    
+    if not collection:
+        return {"status": "error", "message": "RAG non initialisé"}
+    
+    try:
+        # Vérifier que le pattern existe
+        existing = collection.get(ids=[pattern_id])
+        if not existing['ids']:
+            return {"status": "error", "message": f"Pattern '{pattern_id}' non trouvé"}
+        
+        # Supprimer de Chroma
+        collection.delete(ids=[pattern_id])
+        
+        print(f"✅ Pattern supprimé: {pattern_id}")
+        return {"status": "ok", "message": f"Pattern '{pattern_id}' supprimé"}
+    
+    except Exception as e:
+        print(f"❌ Erreur delete_pattern: {str(e)}")
+        return {"status": "error", "message": str(e)}
