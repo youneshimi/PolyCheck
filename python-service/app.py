@@ -2,6 +2,7 @@
 PolyCheck - Service d'analyse AST Python
 Fournit une analyse statique minimale du code source.
 Supporte nativement Python (AST built-in) et des heuristiques pour les autres langages.
+Intègre le RAG (Retrieval Augmented Generation) pour enrichir les analyses avec des bonnes pratiques.
 """
 
 import ast
@@ -10,10 +11,14 @@ import re
 import tokenize
 import io
 from typing import Optional, List
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
+
+# Importer le service RAG
+from ragService import initialize_rag, retrieve_relevant_patterns, augment_prompt_with_patterns
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 MAX_FILE_SIZE_BYTES = int(os.getenv("MAX_FILE_SIZE_BYTES", "51200"))
@@ -22,11 +27,24 @@ SUPPORTED_LANGUAGES = os.getenv(
     "python,javascript,typescript,java,go,rust,c,cpp"
 ).split(",")
 
+# ─── Startup & Shutdown ───────────────────────────────────────────────────────
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    print("🚀 Initialisation du service PolyCheck...")
+    initialize_rag()
+    print("✅ Service PolyCheck prêt !")
+    yield
+    # Shutdown
+    print("🛑 Arrêt du service PolyCheck")
+
 # ─── App FastAPI ──────────────────────────────────────────────────────────────
 app = FastAPI(
     title="PolyCheck AST Service",
     version="1.0.0",
-    description="Service d'analyse statique de code source",
+    description="Service d'analyse statique de code source avec RAG",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -368,3 +386,81 @@ async def analyze(request: AnalyzeRequest):
     ]
 
     return AnalyzeResponse(language=language, issues=issues, metrics=metrics)
+
+
+# ─── Routes RAG (Retrieval Augmented Generation) ─────────────────────────────
+
+class RAGRequest(BaseModel):
+    code: str
+    language: str
+    category: str  # bug, security, style
+    
+    @field_validator("language")
+    @classmethod
+    def validate_language(cls, v: str) -> str:
+        lang = v.strip().lower()
+        if lang not in SUPPORTED_LANGUAGES:
+            raise ValueError(f"Langage non supporté : '{v}'")
+        return lang
+    
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, v: str) -> str:
+        valid_categories = ["bug", "security", "style"]
+        cat = v.strip().lower()
+        if cat not in valid_categories:
+            raise ValueError(f"Catégorie invalide: {v}. Valides: {', '.join(valid_categories)}")
+        return cat
+
+
+class PatternItem(BaseModel):
+    id: str
+    pattern: str
+    language: str
+    category: str
+    severity: str
+    rule: str
+    similarity_score: float
+
+
+class RAGResponse(BaseModel):
+    patterns: List[PatternItem]
+    augmented_context: str
+
+
+@app.post("/rag/retrieve", response_model=RAGResponse)
+async def rag_retrieve(request: RAGRequest):
+    """
+    Récupère les patterns les plus pertinents pour enrichir l'analyse.
+    """
+    patterns = retrieve_relevant_patterns(
+        code=request.code,
+        language=request.language,
+        category=request.category,
+        top_k=3
+    )
+    
+    # Créer le contexte augmenté
+    augmented_context = augment_prompt_with_patterns("", patterns)
+    
+    return RAGResponse(
+        patterns=[PatternItem(**p) for p in patterns],
+        augmented_context=augmented_context
+    )
+
+
+@app.get("/rag/stats")
+async def rag_stats():
+    """
+    Récupère les statistiques de la base de patterns.
+    """
+    from ragService import collection
+    
+    if collection is None:
+        return {"status": "error", "message": "RAG non initialisé"}
+    
+    return {
+        "status": "ok",
+        "total_patterns": collection.count(),
+        "description": "Base de patterns de bonnes pratiques pour l'analyse de code"
+    }
