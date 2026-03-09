@@ -35,3 +35,9 @@ Thumbs.db
 
 # MySQL
 mysql-data/
+
+# Generated reports
+PolyCheck_MonRapport.pdf
+PolyCheck_Rapport.pdf
+generate_simple_report.py
+generate_report.py

@@ -56,7 +56,7 @@ function canonicalizeRule(rule, message = '') {
     // shell-injection par message (règles génériques : function, call, command)
     if ((r === 'function' || r === 'call' || r === 'command') &&
         (m.includes('os.system') || m.includes('system(') || m.includes('subprocess') ||
-         m.includes('exec(') || m.includes('shell') || m.includes('spawn'))) {
+            m.includes('exec(') || m.includes('shell') || m.includes('spawn'))) {
         return 'shell-injection';
     }
 
@@ -67,10 +67,10 @@ function canonicalizeRule(rule, message = '') {
     }
     // hardcoded-secret par message ou préfixe ambigu (credential*, token*, key*)
     if ((r.startsWith('credential') || r.startsWith('token') || r.startsWith('key') ||
-         r === 'password' || r === 'api') &&
+        r === 'password' || r === 'api') &&
         (m.includes('hardcoded') || m.includes('hard-coded') || m.includes('secret') ||
-         m.includes('api') || m.includes('token') || m.includes('key') ||
-         m.includes('credential') || m.includes('password') || m.includes('sk-'))) {
+            m.includes('api') || m.includes('token') || m.includes('key') ||
+            m.includes('credential') || m.includes('password') || m.includes('sk-'))) {
         return 'hardcoded-secret';
     }
     // cas générique : tout message mentionnant une clé hardcodée
@@ -96,9 +96,9 @@ function canonicalizeRule(rule, message = '') {
     // exception générique : bare-except si message parle d'un except: vide/large
     if (r === 'exception' &&
         (m.includes('bare except') || m.includes('bare-except') || m.includes('empty except') ||
-         m.includes('broad except') || m.includes('generic except') ||
-         m.includes('except:') || m.includes('pass') || m.includes('sauf') ||
-         m.includes('attrape tout') || m.includes('catch-all'))) {
+            m.includes('broad except') || m.includes('generic except') ||
+            m.includes('except:') || m.includes('pass') || m.includes('sauf') ||
+            m.includes('attrape tout') || m.includes('catch-all'))) {
         return 'bare-except';
     }
 
@@ -112,8 +112,8 @@ function canonicalizeRule(rule, message = '') {
     // call ou exception générique si message parle de ZeroDivisionError ou division
     if ((r === 'call' || r === 'exception') &&
         (m.includes('zerodivisionerror') || m.includes('zero division') ||
-         m.includes('divide(') || m.includes('division par zéro') ||
-         m.includes('division by zero'))) {
+            m.includes('divide(') || m.includes('division par zéro') ||
+            m.includes('division by zero'))) {
         return 'division-by-zero';
     }
 
