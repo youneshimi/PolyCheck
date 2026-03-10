@@ -9,6 +9,7 @@ const { analyzeWithGroq } = require('../services/groqService');
 const { analyzeWithAST } = require('../services/pythonService');
 const { aggregateAndPrioritize } = require('../services/aggregator');
 const { query } = require('../config/db');
+const { logBuffer } = require('../services/logger');
 
 /**
  * POST /api/analyze
@@ -17,10 +18,13 @@ const { query } = require('../config/db');
 router.post('/', validateAnalyzeRequest, async (req, res, next) => {
     const { code, language, filename } = req.body;
 
+    logBuffer.info('Analyze request received', { language, filename, codeLength: code.length });
+
     // ── Hash du code (pour cache éventuel + indexation) ─────────────────────
     const codeHash = crypto.createHash('sha256').update(code).digest('hex');
 
     // ── Lancer AST et Groq en parallèle ─────────────────────────────────────
+    logBuffer.info('Starting AST + Groq analysis in parallel...');
     const [astResult, groqResult] = await Promise.allSettled([
         analyzeWithAST(language, code),
         analyzeWithGroq(language, code),
@@ -30,8 +34,25 @@ router.post('/', validateAnalyzeRequest, async (req, res, next) => {
     const ast = astResult.status === 'fulfilled' ? astResult.value : { issues: [], metrics: {}, error: astResult.reason?.message };
     const groq = groqResult.status === 'fulfilled' ? groqResult.value : { results: { bug: [], security: [], style: [] }, errors: [groqResult.reason?.message] };
 
+    if (astResult.status === 'fulfilled') {
+        logBuffer.info('AST analysis completed', { issuesFound: ast.issues?.length || 0 });
+    } else {
+        logBuffer.warn('AST analysis failed', { error: astResult.reason?.message });
+    }
+
+    if (groqResult.status === 'fulfilled') {
+        const groqBugs = groq.results?.bug?.length || 0;
+        const groqSecurity = groq.results?.security?.length || 0;
+        const groqStyle = groq.results?.style?.length || 0;
+        logBuffer.info('Groq analysis completed', { bugs: groqBugs, security: groqSecurity, style: groqStyle });
+    } else {
+        logBuffer.warn('Groq analysis failed', { error: groqResult.reason?.message });
+    }
+
     // ── Agrégation et priorisation ───────────────────────────────────────────
+    logBuffer.info('Aggregating and prioritizing issues...');
     const { issues, summary } = aggregateAndPrioritize(groq.results, ast.issues);
+    logBuffer.info('Analysis complete', { totalIssues: issues.length, ...summary });
 
     // ── Persistance en base de données (optionnelle, non-bloquante) ────────────
     let reviewId = null;
@@ -48,9 +69,10 @@ router.post('/', validateAnalyzeRequest, async (req, res, next) => {
                 JSON.stringify(summary),
             ]
         );
+        logBuffer.info('Review saved to database');
     } catch (dbErr) {
         // BD optionnelle : ne pas bloquer l'analyse si la DB fail
-        console.log('[DB] Sauvegarde historique non disponible (non-critique)');
+        logBuffer.warn('Database save failed (non-critical)', { error: dbErr.message });
     }
 
     // ── Réponse ──────────────────────────────────────────────────────────────

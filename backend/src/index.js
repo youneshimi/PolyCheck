@@ -10,6 +10,7 @@ const helmet = require('helmet');
 const { initDB } = require('./config/db');
 const analyzeRouter = require('./routes/analyze');
 const reviewsRouter = require('./routes/reviews');
+const logsRouter = require('./routes/logs');
 
 const app = express();
 const PORT = process.env.BACKEND_PORT || 3001;
@@ -23,6 +24,7 @@ app.use(express.json({ limit: '2mb' }));
 // ─── Routes ──────────────────────────────────────────────────────────────────
 app.use('/api/analyze', analyzeRouter);
 app.use('/api/reviews', reviewsRouter);
+app.use('/api/logs', logsRouter);
 
 // ─── Health ──────────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {

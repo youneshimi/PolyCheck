@@ -3,6 +3,7 @@ import { analyzeCode } from './api/client.js';
 import CodeEditor from './components/CodeEditor.jsx';
 import LanguageSelector from './components/LanguageSelector.jsx';
 import AnalysisPanel from './components/AnalysisPanel.jsx';
+import LogConsole from './components/LogConsole.jsx';
 import './App.css';
 
 export default function App() {
@@ -105,6 +106,9 @@ export default function App() {
             <footer className="app-footer">
                 PolyCheck MVP — Propulsé par GroqCloud (llama3-70b-8192)
             </footer>
+
+            {/* ── Console de logs ── */}
+            <LogConsole />
         </div>
     );
 }
