@@ -19,6 +19,7 @@ const logDatabaseService = require('../services/logDatabaseService');
  */
 router.post('/', validateAnalyzeRequest, async (req, res, next) => {
     const { code, language, filename } = req.body;
+    const logStartIndex = logBuffer.size();
 
     logBuffer.info('Analyze request received', { language, filename, codeLength: code.length });
 
@@ -77,8 +78,8 @@ router.post('/', validateAnalyzeRequest, async (req, res, next) => {
         );
         logBuffer.info('Review saved to database', { reviewId });
 
-        // Sauvegarder les logs associés à cette analyse dans la BD
-        const analysisLogs = logBuffer.getAll();
+        // Sauvegarder uniquement les logs de cette analyse dans la BD
+        const analysisLogs = logBuffer.getSince(logStartIndex);
         await logDatabaseService.saveLogs(reviewId, analysisLogs);
     } catch (dbErr) {
         // BD optionnelle : ne pas bloquer l'analyse si la DB fail

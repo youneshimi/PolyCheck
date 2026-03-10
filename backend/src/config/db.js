@@ -32,6 +32,26 @@ async function initDB() {
             // Test de connexion
             const conn = await pool.getConnection();
             conn.release();
+
+            // Migration defensive: creer la table analysis_logs si absente.
+            await pool.execute(
+                `CREATE TABLE IF NOT EXISTS analysis_logs (
+                    id VARCHAR(36) NOT NULL DEFAULT (UUID()),
+                    review_id VARCHAR(36) NOT NULL,
+                    timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    level ENUM('info','warn','error','debug') NOT NULL DEFAULT 'info',
+                    message VARCHAR(500) NOT NULL,
+                    metadata JSON DEFAULT NULL,
+                    PRIMARY KEY (id),
+                    INDEX idx_review_id (review_id),
+                    INDEX idx_timestamp (timestamp),
+                    INDEX idx_level (level),
+                    CONSTRAINT fk_analysis_logs_review
+                        FOREIGN KEY (review_id) REFERENCES reviews (id)
+                        ON DELETE CASCADE ON UPDATE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+            );
+
             console.log('✅ Connecté à MySQL');
             return pool;
         } catch (err) {

@@ -9,7 +9,6 @@ class LogBuffer {
     constructor(maxSize = 500) {
         this.logs = [];
         this.maxSize = maxSize;
-        this.currentAnalysisId = null;
     }
 
     log(level, message, metadata = {}) {
@@ -59,6 +58,19 @@ class LogBuffer {
         return this.logs;
     }
 
+    // Taille actuelle du buffer
+    size() {
+        return this.logs.length;
+    }
+
+    // Retourner les logs a partir d'un index (inclus)
+    getSince(startIndex = 0) {
+        if (startIndex < 0 || startIndex >= this.logs.length) {
+            return [];
+        }
+        return this.logs.slice(startIndex);
+    }
+
     // Retourner les derniers N logs
     getLast(count = 100) {
         return this.logs.slice(-count);
@@ -74,15 +86,6 @@ class LogBuffer {
         this.logs = [];
     }
 
-    // Définir l'ID de la review / analyse actuelle
-    setCurrentAnalysisId(reviewId) {
-        this.currentAnalysisId = reviewId;
-    }
-
-    // Obtenir les logs de l'analyse actuelle
-    getCurrentAnalysisLogs() {
-        return this.getAll();
-    }
 }
 
 // Instance globale unique

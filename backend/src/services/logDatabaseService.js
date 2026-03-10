@@ -22,9 +22,10 @@ class LogDatabaseService {
             // Insérer chaque log dans la table analysis_logs
             for (const log of logs) {
                 const metadata = JSON.stringify(log.metadata || {});
+                const timestamp = new Date(log.timestamp || Date.now());
                 await query(
                     'INSERT INTO analysis_logs (review_id, timestamp, level, message, metadata) VALUES (?, ?, ?, ?, ?)',
-                    [reviewId, log.timestamp, log.level, log.message, metadata]
+                    [reviewId, timestamp, log.level, log.message, metadata]
                 );
             }
 
@@ -96,11 +97,11 @@ class LogDatabaseService {
      */
     async getRecentLogs(limit = 100) {
         try {
+            const safeLimit = Number.isFinite(Number(limit)) ? Math.max(1, Math.min(1000, Number(limit))) : 100;
             const results = await query(
                 `SELECT * FROM analysis_logs 
                  ORDER BY timestamp DESC 
-                 LIMIT ?`,
-                [limit]
+                 LIMIT ${safeLimit}`
             );
             return (results || []).reverse(); // Inverser pour avoir l'ordre chronologique
         } catch (error) {
