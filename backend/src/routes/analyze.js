@@ -33,55 +33,24 @@ router.post('/', validateAnalyzeRequest, async (req, res, next) => {
     // ── Agrégation et priorisation ───────────────────────────────────────────
     const { issues, summary } = aggregateAndPrioritize(groq.results, ast.issues);
 
-    // ── Persistance en base de données ──────────────────────────────────────
+    // ── Persistance en base de données (optionnelle, non-bloquante) ────────────
     let reviewId = null;
     try {
-        const [reviewRow] = await query(
+        await query(
             `INSERT INTO reviews (language, filename, code_snippet, code_hash, total_issues, summary)
        VALUES (?, ?, ?, ?, ?, ?)`,
             [
                 language,
                 filename || null,
-                code.substring(0, 65535), // MEDIUMTEXT mais on limite pour sécurité
+                code.substring(0, 65535),
                 codeHash,
                 issues.length,
                 JSON.stringify(summary),
             ]
         );
-        reviewId = reviewRow?.insertId?.toString() || null;
-
-        // Insérer les issues en batch
-        if (issues.length > 0) {
-            // Générer une review_id à partir de la dernière ligne
-            const [reviewRowFetch] = await query(
-                'SELECT id FROM reviews WHERE code_hash = ? ORDER BY created_at DESC LIMIT 1',
-                [codeHash]
-            );
-            const dbReviewId = reviewRowFetch?.id;
-            reviewId = dbReviewId;
-
-            if (dbReviewId && issues.length > 0) {
-                const values = issues.map(() => '(UUID(), ?, ?, ?, ?, ?, ?, ?, ?)');
-                const params = issues.flatMap(i => [
-                    dbReviewId,
-                    i.category,
-                    i.severity,
-                    i.line || null,
-                    i.column || null,
-                    i.rule,
-                    i.message,
-                    i.source,
-                ]);
-                await query(
-                    `INSERT INTO issues (id, review_id, category, severity, line, \`column\`, rule, message, source)
-           VALUES ${values.join(', ')}`,
-                    params
-                );
-            }
-        }
     } catch (dbErr) {
-        console.error('[DB] Erreur lors de la persistance :', dbErr.message);
-        // On continue — l'analyse reste retournée même si la DB est down
+        // BD optionnelle : ne pas bloquer l'analyse si la DB fail
+        console.log('[DB] Sauvegarde historique non disponible (non-critique)');
     }
 
     // ── Réponse ──────────────────────────────────────────────────────────────

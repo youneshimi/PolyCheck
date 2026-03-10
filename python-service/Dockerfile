@@ -12,6 +12,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Installer setuptools et wheel avant les autres dépendances
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
+# Installer torch CPU-only (évite les téléchargements CUDA inutiles - 600+ MB)
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
 # Installer les dépendances
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

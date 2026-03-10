@@ -1,0 +1,77 @@
+### === TEST SANTÉ SERVICES ===
+
+### 1. Python RAG Service Health
+GET http://localhost:8000/health
+Accept: application/json
+
+### === TEST ENDPOINTS RAG ===
+
+### 2. Lister tous les patterns (20+)
+GET http://localhost:8000/rag/patterns
+Accept: application/json
+
+### 3. Voir les stats KB
+GET http://localhost:8000/rag/stats
+Accept: application/json
+
+### 4. Récupérer un pattern spécifique
+GET http://localhost:8000/rag/patterns/py_001
+Accept: application/json
+
+### === TEST RETRIEVAL (Core RAG) ===
+
+### 5. Récupérer patterns similaires (Python code)
+POST http://localhost:8000/rag/retrieve
+Content-Type: application/json
+
+{
+  "code": "def hello():\n    print('test')",
+  "language": "python",
+  "category": "style"
+}
+
+### === TEST CRUD OPERATIONS ===
+
+### 6. Créer un nouveau pattern
+POST http://localhost:8000/rag/patterns
+Content-Type: application/json
+
+{
+  "id": "custom_001",
+  "name": "My Custom Pattern",
+  "language": "python",
+  "category": "bug",
+  "description": "Avoid mutable default arguments",
+  "rule": "Never use mutable objects as default arguments",
+  "example": "def foo(lst=[]):",
+  "fix": "def foo(lst=None):"
+}
+
+### 7. Mettre à jour un pattern
+PUT http://localhost:8000/rag/patterns/custom_001
+Content-Type: application/json
+
+{
+  "name": "Updated Custom Pattern",
+  "rule": "Updated rule description"
+}
+
+### 8. Supprimer un pattern
+DELETE http://localhost:8000/rag/patterns/custom_001
+Accept: application/json
+
+### === TEST BACKEND API ===
+
+### 9. Test Health Backend
+GET http://localhost:3001/api/health
+Accept: application/json
+
+### 10. Analyzer avec RAG (Full Pipeline)
+POST http://localhost:3001/api/analyze
+Content-Type: application/json
+
+{
+  "code": "def foo(arr=[]):\n    arr.append(1)\n    return arr",
+  "language": "python",
+  "category": "bugs"
+}
