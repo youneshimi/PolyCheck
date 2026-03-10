@@ -2,6 +2,7 @@
 
 const express = require('express');
 const crypto = require('crypto');
+const { v4: uuidv4 } = require('uuid');
 const router = express.Router();
 
 const { validateAnalyzeRequest } = require('../middleware/validate');
@@ -10,6 +11,7 @@ const { analyzeWithAST } = require('../services/pythonService');
 const { aggregateAndPrioritize } = require('../services/aggregator');
 const { query } = require('../config/db');
 const { logBuffer } = require('../services/logger');
+const logDatabaseService = require('../services/logDatabaseService');
 
 /**
  * POST /api/analyze
@@ -57,10 +59,14 @@ router.post('/', validateAnalyzeRequest, async (req, res, next) => {
     // ── Persistance en base de données (optionnelle, non-bloquante) ────────────
     let reviewId = null;
     try {
+        // Générer l'UUID côté Node.js pour pouvoir l'utiliser immédiatement
+        reviewId = uuidv4();
+
         await query(
-            `INSERT INTO reviews (language, filename, code_snippet, code_hash, total_issues, summary)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO reviews (id, language, filename, code_snippet, code_hash, total_issues, summary)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [
+                reviewId,
                 language,
                 filename || null,
                 code.substring(0, 65535),
@@ -69,7 +75,11 @@ router.post('/', validateAnalyzeRequest, async (req, res, next) => {
                 JSON.stringify(summary),
             ]
         );
-        logBuffer.info('Review saved to database');
+        logBuffer.info('Review saved to database', { reviewId });
+
+        // Sauvegarder les logs associés à cette analyse dans la BD
+        const analysisLogs = logBuffer.getAll();
+        await logDatabaseService.saveLogs(reviewId, analysisLogs);
     } catch (dbErr) {
         // BD optionnelle : ne pas bloquer l'analyse si la DB fail
         logBuffer.warn('Database save failed (non-critical)', { error: dbErr.message });

@@ -2,13 +2,14 @@
 
 /**
  * In-memory logger pour capturer les logs de l'application
- * et les servir via API au frontend
+ * Supports both in-memory storage et persistance en base de données
  */
 
 class LogBuffer {
     constructor(maxSize = 500) {
         this.logs = [];
         this.maxSize = maxSize;
+        this.currentAnalysisId = null;
     }
 
     log(level, message, metadata = {}) {
@@ -71,6 +72,16 @@ class LogBuffer {
     // Vider les logs
     clear() {
         this.logs = [];
+    }
+
+    // Définir l'ID de la review / analyse actuelle
+    setCurrentAnalysisId(reviewId) {
+        this.currentAnalysisId = reviewId;
+    }
+
+    // Obtenir les logs de l'analyse actuelle
+    getCurrentAnalysisLogs() {
+        return this.getAll();
     }
 }
 
