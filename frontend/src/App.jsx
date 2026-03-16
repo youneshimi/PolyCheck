@@ -45,21 +45,22 @@ export default function App() {
                 </div>
             </header>
 
-            {/* ── Zone de saisie ── */}
+            {/* ── Split Panel Layout ── */}
             <main className="app-main">
-                <section className="input-section">
-                    <div className="input-controls">
-                        <LanguageSelector value={language} onChange={setLanguage} />
-
-                        <input
-                            className="filename-input"
-                            type="text"
-                            placeholder="Nom du fichier (optionnel, ex: main.py)"
-                            value={filename}
-                            onChange={e => setFilename(e.target.value)}
-                            disabled={loading}
-                        />
-
+                {/* LEFT: Code Editor Panel */}
+                <section className="panel-left">
+                    <div className="panel-header">
+                        <div className="input-controls">
+                            <LanguageSelector value={language} onChange={setLanguage} />
+                            <input
+                                className="filename-input"
+                                type="text"
+                                placeholder="Nom du fichier (optionnel, ex: main.py)"
+                                value={filename}
+                                onChange={e => setFilename(e.target.value)}
+                                disabled={loading}
+                            />
+                        </div>
                         <button
                             className={`analyze-btn ${loading ? 'loading' : ''}`}
                             onClick={handleAnalyze}
@@ -76,31 +77,39 @@ export default function App() {
                         </button>
                     </div>
 
-                    <CodeEditor
-                        value={code}
-                        onChange={setCode}
-                        language={language}
-                        disabled={loading}
-                    />
+                    <div className="editor-wrapper">
+                        <CodeEditor
+                            value={code}
+                            onChange={setCode}
+                            language={language}
+                            disabled={loading}
+                        />
+                    </div>
 
-                    {/* Compteur de caractères */}
                     <div className="code-meta">
                         <span>{code.length.toLocaleString()} caractères</span>
                         <span>{code.split('\n').length} lignes</span>
                     </div>
                 </section>
 
-                {/* ── Erreur ── */}
-                {error && (
-                    <div className="error-banner" role="alert">
-                        <span>⚠️</span> {error}
-                    </div>
-                )}
+                {/* RIGHT: Results Panel */}
+                <section className="panel-right">
+                    {error && (
+                        <div className="error-banner" role="alert">
+                            <span>⚠️</span> {error}
+                        </div>
+                    )}
 
-                {/* ── Résultats ── */}
-                {result && (
-                    <AnalysisPanel result={result} />
-                )}
+                    {result ? (
+                        <AnalysisPanel result={result} />
+                    ) : (
+                        <div className="empty-results">
+                            <div className="empty-results-icon">📋</div>
+                            <h3>Résultats d'analyse</h3>
+                            <p>Collez votre code à gauche et cliquez sur <strong>⚡ Analyser</strong> pour voir les résultats ici.</p>
+                        </div>
+                    )}
+                </section>
             </main>
 
             <footer className="app-footer">

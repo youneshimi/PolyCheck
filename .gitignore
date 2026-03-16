@@ -40,10 +40,12 @@ mysql-data/
 PolyCheck_MonRapport.pdf
 PolyCheck_Rapport.pdf
 PolyCheck_MCP_Rapport.pdf
+Rapport final v0.1.pdf
 generate_simple_report.py
 generate_report.py
 generate_global_report.py
 generate_mcp_report.py
+generate_rapport_final.py
 RAPPORT_POLYCHECK.md
 
 # Claude
