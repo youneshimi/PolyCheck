@@ -65,9 +65,10 @@ services:
       - "8000:8000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
     networks:
       - polycheck_net
 
@@ -101,6 +102,30 @@ services:
         condition: service_healthy
       python-service:
         condition: service_healthy
+    networks:
+      - polycheck_net
+
+  # ─── MCP Server (PHP) ─────────────────────────────────────────────────────
+  mcp-server:
+    build:
+      context: ./mcp-server
+      dockerfile: Dockerfile
+    container_name: polycheck_mcp
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: http://backend:${BACKEND_PORT}
+      PYTHON_SERVICE_URL: ${PYTHON_SERVICE_URL}
+      MCP_SERVER_PORT: ${MCP_SERVER_PORT:-3002}
+    ports:
+      - "${MCP_SERVER_PORT:-3002}:3002"
+    depends_on:
+      - backend
+      - python-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - polycheck_net
 

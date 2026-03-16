@@ -39,5 +39,12 @@ mysql-data/
 # Generated reports
 PolyCheck_MonRapport.pdf
 PolyCheck_Rapport.pdf
+PolyCheck_MCP_Rapport.pdf
 generate_simple_report.py
 generate_report.py
+generate_global_report.py
+generate_mcp_report.py
+RAPPORT_POLYCHECK.md
+
+# Claude
+.claude

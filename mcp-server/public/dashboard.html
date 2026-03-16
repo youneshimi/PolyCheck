@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PolyCheck MCP Dashboard</title>
+    <style>
+        :root {
+            --bg: #0f1117;
+            --bg-sidebar: #161822;
+            --bg-card: #1e2030;
+            --bg-input: #262840;
+            --border: #2e3148;
+            --text: #e0e0e8;
+            --text-muted: #8888a0;
+            --accent: #7c6cff;
+            --accent-hover: #9488ff;
+            --green: #4caf50;
+            --orange: #ff9800;
+            --red: #f44336;
+            --critical: #ff1744;
+            --high: #ff5722;
+            --medium: #ffa726;
+            --low: #66bb6a;
+            --security: #ef5350;
+            --bug: #ff7043;
+            --style: #42a5f5;
+            --radius: 8px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ── Header ──────────────────────────────────────── */
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 24px;
+            background: var(--bg-sidebar);
+            border-bottom: 1px solid var(--border);
+            z-index: 10;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--accent);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .logo h1 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .logo h1 span {
+            color: var(--accent);
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .status-badge.disconnected {
+            background: rgba(244, 67, 54, 0.15);
+            color: var(--red);
+        }
+
+        .status-badge.connected {
+            background: rgba(76, 175, 80, 0.15);
+            color: var(--green);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: var(--radius);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: var(--bg-input);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+        }
+
+        /* ── Layout principal ────────────────────────────── */
+        .layout {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* ── Sidebar ─────────────────────────────────────── */
+        aside {
+            width: 280px;
+            min-width: 280px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .sidebar-section {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-section h3 {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+        }
+
+        .tool-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.15s;
+            margin-bottom: 2px;
+        }
+
+        .tool-item:hover {
+            background: var(--bg-input);
+        }
+
+        .tool-item.active {
+            background: rgba(124, 108, 255, 0.15);
+            color: var(--accent);
+        }
+
+        .tool-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .tool-icon.analyze { background: rgba(124, 108, 255, 0.2); }
+        .tool-icon.review { background: rgba(76, 175, 80, 0.2); }
+        .tool-icon.rag { background: rgba(255, 152, 0, 0.2); }
+        .tool-icon.danger { background: rgba(244, 67, 54, 0.2); }
+
+        .server-info {
+            padding: 16px;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: auto;
+        }
+
+        .server-info p {
+            margin-bottom: 4px;
+        }
+
+        /* ── Content principal ────────────────────────────── */
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        .welcome {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .welcome h2 {
+            font-size: 24px;
+            margin-bottom: 12px;
+        }
+
+        .welcome p {
+            color: var(--text-muted);
+            font-size: 15px;
+            max-width: 500px;
+            margin: 0 auto 24px;
+        }
+
+        .stats-row {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-top: 32px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px 28px;
+            text-align: center;
+        }
+
+        .stat-card .number {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .stat-card .label {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* ── Tool Form ───────────────────────────────────── */
+        .tool-panel h2 {
+            font-size: 18px;
+            margin-bottom: 4px;
+        }
+
+        .tool-desc {
+            color: var(--text-muted);
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 14px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-group textarea {
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            min-height: 160px;
+            resize: vertical;
+            line-height: 1.5;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            border-color: var(--accent);
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        /* ── Results ─────────────────────────────────────── */
+        .results {
+            margin-top: 24px;
+        }
+
+        .results h3 {
+            font-size: 15px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .summary-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .summary-item .value {
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .summary-item .label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+
+        .issue-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 14px 16px;
+            margin-bottom: 8px;
+        }
+
+        .issue-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .badge {
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge.critical { background: rgba(255, 23, 68, 0.2); color: var(--critical); }
+        .badge.high { background: rgba(255, 87, 34, 0.2); color: var(--high); }
+        .badge.medium { background: rgba(255, 167, 38, 0.2); color: var(--medium); }
+        .badge.low { background: rgba(102, 187, 106, 0.2); color: var(--low); }
+        .badge.security { background: rgba(239, 83, 80, 0.2); color: var(--security); }
+        .badge.bug { background: rgba(255, 112, 67, 0.2); color: var(--bug); }
+        .badge.style { background: rgba(66, 165, 245, 0.2); color: var(--style); }
+        .badge.source { background: rgba(124, 108, 255, 0.15); color: var(--accent); }
+
+        .issue-line {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-left: auto;
+        }
+
+        .issue-message {
+            font-size: 13px;
+            line-height: 1.5;
+            margin-bottom: 6px;
+        }
+
+        .issue-suggestion {
+            font-size: 12px;
+            color: var(--green);
+            padding: 8px 10px;
+            background: rgba(76, 175, 80, 0.08);
+            border-radius: 4px;
+            line-height: 1.4;
+        }
+
+        /* ── JSON Result ─────────────────────────────────── */
+        .json-result {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px;
+            overflow-x: auto;
+        }
+
+        .json-result pre {
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        /* ── Protocol Log ────────────────────────────────── */
+        .protocol-log {
+            height: 200px;
+            min-height: 100px;
+            background: var(--bg-sidebar);
+            border-top: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .protocol-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 16px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .protocol-header h4 {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+        }
+
+        .protocol-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 16px;
+            font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .msg-row {
+            display: flex;
+            gap: 8px;
+            padding: 2px 0;
+        }
+
+        .msg-arrow {
+            flex-shrink: 0;
+            font-weight: bold;
+        }
+
+        .msg-arrow.request { color: var(--accent); }
+        .msg-arrow.response { color: var(--green); }
+        .msg-arrow.error { color: var(--red); }
+
+        .msg-time {
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+
+        .msg-body {
+            color: var(--text);
+            word-break: break-all;
+        }
+
+        /* ── Loading ─────────────────────────────────────── */
+        .loading {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 20px;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* ── Scrollbar ───────────────────────────────────── */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+        /* ── Responsive ──────────────────────────────────── */
+        @media (max-width: 768px) {
+            aside { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ── Header ────────────────────────────────────────── -->
+    <header>
+        <div class="logo">
+            <div class="logo-icon">PC</div>
+            <h1>Poly<span>Check</span> MCP</h1>
+        </div>
+        <div class="header-right">
+            <div id="statusBadge" class="status-badge disconnected">
+                <div class="status-dot"></div>
+                <span id="statusText">Disconnected</span>
+            </div>
+            <button class="btn btn-primary" id="btnConnect" onclick="initializeMcp()">Connexion MCP</button>
+        </div>
+    </header>
+
+    <div class="layout">
+        <!-- ── Sidebar ───────────────────────────────────── -->
+        <aside>
+            <div class="sidebar-section">
+                <h3>Analyse</h3>
+                <div class="tool-item" onclick="selectTool('analyze_code')">
+                    <div class="tool-icon analyze">&#9881;</div>
+                    <span>Analyser du code</span>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <h3>Reviews</h3>
+                <div class="tool-item" onclick="selectTool('list_reviews')">
+                    <div class="tool-icon review">&#9776;</div>
+                    <span>Lister les reviews</span>
+                </div>
+                <div class="tool-item" onclick="selectTool('get_review')">
+                    <div class="tool-icon review">&#128269;</div>
+                    <span>Detail d'une review</span>
+                </div>
+                <div class="tool-item" onclick="selectTool('delete_review')">
+                    <div class="tool-icon danger">&#10006;</div>
+                    <span>Supprimer une review</span>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <h3>RAG - Base de connaissances</h3>
+                <div class="tool-item" onclick="selectTool('search_patterns')">
+                    <div class="tool-icon rag">&#128270;</div>
+                    <span>Recherche vectorielle</span>
+                </div>
+                <div class="tool-item" onclick="selectTool('list_patterns')">
+                    <div class="tool-icon rag">&#128218;</div>
+                    <span>Tous les patterns</span>
+                </div>
+                <div class="tool-item" onclick="selectTool('get_pattern')">
+                    <div class="tool-icon rag">&#128196;</div>
+                    <span>Detail d'un pattern</span>
+                </div>
+                <div class="tool-item" onclick="selectTool('create_pattern')">
+                    <div class="tool-icon rag">&#10010;</div>
+                    <span>Creer un pattern</span>
+                </div>
+                <div class="tool-item" onclick="selectTool('update_pattern')">
+                    <div class="tool-icon rag">&#9998;</div>
+                    <span>Modifier un pattern</span>
+                </div>
+                <div class="tool-item" onclick="selectTool('delete_pattern')">
+                    <div class="tool-icon danger">&#128465;</div>
+                    <span>Supprimer un pattern</span>
+                </div>
+                <div class="tool-item" onclick="selectTool('get_rag_stats')">
+                    <div class="tool-icon rag">&#128202;</div>
+                    <span>Statistiques RAG</span>
+                </div>
+            </div>
+
+            <div class="server-info" id="serverInfo">
+                <p><strong>MCP Server</strong></p>
+                <p>Protocol: -</p>
+                <p>Version: -</p>
+            </div>
+        </aside>
+
+        <!-- ── Main Content ──────────────────────────────── -->
+        <main>
+            <div class="content" id="content">
+                <div class="welcome" id="welcome">
+                    <h2>PolyCheck MCP Server</h2>
+                    <p>
+                        Interface de visualisation du serveur MCP (Model Context Protocol).
+                        Connectez-vous pour explorer les 11 outils disponibles.
+                    </p>
+                    <button class="btn btn-primary" onclick="initializeMcp()" style="font-size:15px; padding:12px 28px;">
+                        Initialiser la connexion MCP
+                    </button>
+                    <div class="stats-row" id="statsRow" style="display:none;">
+                        <div class="stat-card">
+                            <div class="number" id="statTools">11</div>
+                            <div class="label">Tools MCP</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number" id="statProtocol">-</div>
+                            <div class="label">Protocol</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number" id="statVersion">-</div>
+                            <div class="label">Version</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Protocol Log ──────────────────────────── -->
+            <div class="protocol-log">
+                <div class="protocol-header" onclick="toggleLog()">
+                    <h4>Protocol Log (JSON-RPC 2.0)</h4>
+                    <button class="btn btn-secondary" onclick="event.stopPropagation(); clearLog()" style="padding:4px 10px; font-size:11px;">Clear</button>
+                </div>
+                <div class="protocol-messages" id="protocolLog"></div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+    // ═══════════════════════════════════════════════════════════════════════
+    //  MCP Client
+    // ═══════════════════════════════════════════════════════════════════════
+
+    const MCP_ENDPOINT = '/mcp';
+    let mcpId = 0;
+    let isConnected = false;
+    let tools = [];
+    let currentTool = null;
+
+    async function mcpRequest(method, params = {}) {
+        const id = ++mcpId;
+        const request = { jsonrpc: '2.0', id, method, params };
+
+        logMessage('request', request);
+
+        try {
+            const response = await fetch(MCP_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(request),
+            });
+
+            const data = await response.json();
+            logMessage(data.error ? 'error' : 'response', data);
+            return data;
+        } catch (err) {
+            const errorData = { error: err.message };
+            logMessage('error', errorData);
+            throw err;
+        }
+    }
+
+    async function initializeMcp() {
+        const btn = document.getElementById('btnConnect');
+        btn.disabled = true;
+        btn.textContent = 'Connexion...';
+
+        try {
+            // 1. Initialize
+            const initResult = await mcpRequest('initialize', {
+                protocolVersion: '2025-03-26',
+                capabilities: {},
+                clientInfo: { name: 'PolyCheck Dashboard', version: '1.0.0' }
+            });
+
+            if (initResult.result) {
+                const info = initResult.result;
+                setConnected(true, info);
+            }
+
+            // 2. Send initialized notification
+            fetch(MCP_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
+            });
+
+            // 3. List tools
+            const toolsResult = await mcpRequest('tools/list');
+            if (toolsResult.result && toolsResult.result.tools) {
+                tools = toolsResult.result.tools;
+                document.getElementById('statTools').textContent = tools.length;
+            }
+
+            btn.textContent = 'Connecte';
+
+        } catch (err) {
+            setConnected(false);
+            btn.disabled = false;
+            btn.textContent = 'Reconnecter';
+        }
+    }
+
+    async function callTool(name, args) {
+        return mcpRequest('tools/call', { name, arguments: args });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  UI State
+    // ═══════════════════════════════════════════════════════════════════════
+
+    function setConnected(connected, info = null) {
+        isConnected = connected;
+        const badge = document.getElementById('statusBadge');
+        const text = document.getElementById('statusText');
+
+        if (connected) {
+            badge.className = 'status-badge connected';
+            text.textContent = 'Connected';
+
+            if (info) {
+                document.getElementById('serverInfo').innerHTML = `
+                    <p><strong>${info.serverInfo.name}</strong></p>
+                    <p>Protocol: ${info.protocolVersion}</p>
+                    <p>Version: ${info.serverInfo.version}</p>
+                `;
+                document.getElementById('statProtocol').textContent = info.protocolVersion.split('-')[0];
+                document.getElementById('statVersion').textContent = info.serverInfo.version;
+                document.getElementById('statsRow').style.display = 'flex';
+            }
+        } else {
+            badge.className = 'status-badge disconnected';
+            text.textContent = 'Disconnected';
+        }
+    }
+
+    function selectTool(name) {
+        currentTool = tools.find(t => t.name === name) || { name, description: '', inputSchema: { properties: {}, required: [] } };
+
+        // Active state in sidebar
+        document.querySelectorAll('.tool-item').forEach(el => el.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+
+        renderToolForm(currentTool);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  Tool Form Renderer
+    // ═══════════════════════════════════════════════════════════════════════
+
+    function renderToolForm(tool) {
+        const content = document.getElementById('content');
+        const props = tool.inputSchema.properties || {};
+        const required = tool.inputSchema.required || [];
+
+        let formHtml = `
+            <div class="tool-panel">
+                <h2>${formatToolName(tool.name)}</h2>
+                <p class="tool-desc">${tool.description}</p>
+                <form id="toolForm" onsubmit="executeTool(event)">
+        `;
+
+        for (const [key, schema] of Object.entries(props)) {
+            const isRequired = required.includes(key);
+            const reqMark = isRequired ? ' *' : '';
+
+            if (schema.enum) {
+                formHtml += `
+                    <div class="form-group">
+                        <label>${key}${reqMark}</label>
+                        <select name="${key}" ${isRequired ? 'required' : ''}>
+                            ${schema.enum.map(v => `<option value="${v}">${v}</option>`).join('')}
+                        </select>
+                    </div>`;
+            } else if (key === 'code' || key === 'pattern' || key === 'bad_example' || key === 'good_example') {
+                const placeholder = key === 'code' ? 'import os\nos.system(input())' : '';
+                formHtml += `
+                    <div class="form-group">
+                        <label>${key}${reqMark}</label>
+                        <textarea name="${key}" ${isRequired ? 'required' : ''} placeholder="${placeholder}">${key === 'code' ? 'import os\nos.system(input())' : ''}</textarea>
+                    </div>`;
+            } else {
+                const defVal = schema.default !== undefined ? schema.default : '';
+                formHtml += `
+                    <div class="form-group">
+                        <label>${key}${reqMark}</label>
+                        <input type="${schema.type === 'integer' ? 'number' : 'text'}" name="${key}"
+                               value="${defVal}" ${isRequired ? 'required' : ''}
+                               placeholder="${schema.description || ''}">
+                    </div>`;
+            }
+        }
+
+        formHtml += `
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" id="btnExecute">
+                            Executer ${formatToolName(tool.name)}
+                        </button>
+                    </div>
+                </form>
+                <div class="results" id="results"></div>
+            </div>
+        `;
+
+        content.innerHTML = formHtml;
+
+        // Auto-execute for tools without params
+        if (Object.keys(props).length === 0) {
+            executeTool(new Event('submit'));
+        }
+    }
+
+    async function executeTool(e) {
+        e.preventDefault();
+        if (!currentTool) return;
+
+        const btn = document.getElementById('btnExecute');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner" style="display:inline-block;width:14px;height:14px;vertical-align:middle;margin-right:6px;"></span>Analyse en cours...';
+        }
+
+        const form = document.getElementById('toolForm');
+        const formData = new FormData(form);
+        const args = {};
+
+        for (const [key, value] of formData.entries()) {
+            if (value !== '') {
+                const schema = currentTool.inputSchema.properties[key];
+                if (schema && schema.type === 'integer') {
+                    args[key] = parseInt(value, 10);
+                } else {
+                    args[key] = value;
+                }
+            }
+        }
+
+        try {
+            const result = await callTool(currentTool.name, args);
+            renderResults(result, currentTool.name);
+        } catch (err) {
+            document.getElementById('results').innerHTML = `
+                <div class="json-result" style="border-color: var(--red);">
+                    <pre style="color: var(--red);">Erreur: ${err.message}</pre>
+                </div>`;
+        }
+
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `Executer ${formatToolName(currentTool.name)}`;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  Results Renderer
+    // ═══════════════════════════════════════════════════════════════════════
+
+    function renderResults(result, toolName) {
+        const container = document.getElementById('results');
+
+        if (result.error) {
+            container.innerHTML = `
+                <h3 style="color:var(--red);">Erreur</h3>
+                <div class="json-result" style="border-color:var(--red);">
+                    <pre>${JSON.stringify(result.error, null, 2)}</pre>
+                </div>`;
+            return;
+        }
+
+        const content = result.result?.content?.[0]?.text;
+        if (!content) {
+            container.innerHTML = '<p style="color:var(--text-muted);">Aucun resultat</p>';
+            return;
+        }
+
+        let data;
+        try {
+            data = JSON.parse(content);
+        } catch {
+            container.innerHTML = `<div class="json-result"><pre>${content}</pre></div>`;
+            return;
+        }
+
+        // Special rendering for analyze_code
+        if (toolName === 'analyze_code' && data.issues) {
+            renderAnalysisResults(container, data);
+            return;
+        }
+
+        // Special rendering for list_patterns
+        if (toolName === 'list_patterns' && data.patterns) {
+            renderPatternsList(container, data);
+            return;
+        }
+
+        // Special rendering for search_patterns
+        if (toolName === 'search_patterns' && data.patterns) {
+            renderSearchResults(container, data);
+            return;
+        }
+
+        // Special rendering for list_reviews
+        if (toolName === 'list_reviews' && data.data) {
+            renderReviewsList(container, data);
+            return;
+        }
+
+        // Default: pretty JSON
+        container.innerHTML = `
+            <h3>Resultat</h3>
+            <div class="json-result">
+                <pre>${syntaxHighlight(JSON.stringify(data, null, 2))}</pre>
+            </div>`;
+    }
+
+    function renderAnalysisResults(container, data) {
+        const s = data.summary;
+        let html = '<h3>Resultat de l\'analyse</h3>';
+
+        // Summary grid
+        html += '<div class="summary-grid">';
+        html += `<div class="summary-item"><div class="value">${s.total}</div><div class="label">Issues</div></div>`;
+        html += `<div class="summary-item"><div class="value" style="color:var(--critical)">${s.by_severity.critical}</div><div class="label">Critical</div></div>`;
+        html += `<div class="summary-item"><div class="value" style="color:var(--high)">${s.by_severity.high}</div><div class="label">High</div></div>`;
+        html += `<div class="summary-item"><div class="value" style="color:var(--medium)">${s.by_severity.medium}</div><div class="label">Medium</div></div>`;
+        html += `<div class="summary-item"><div class="value" style="color:var(--low)">${s.by_severity.low}</div><div class="label">Low</div></div>`;
+        html += '</div>';
+
+        // Source badges
+        html += '<div style="display:flex;gap:8px;margin-bottom:16px;">';
+        html += `<span class="badge source">Groq: ${s.by_source.groq}</span>`;
+        html += `<span class="badge source">AST: ${s.by_source.ast}</span>`;
+        html += `<span class="badge source">AST+Groq: ${s.by_source['ast+groq']}</span>`;
+        html += '</div>';
+
+        // Warnings
+        if (data.warnings && data.warnings.length > 0) {
+            html += '<div style="background:rgba(255,152,0,0.1);border:1px solid rgba(255,152,0,0.3);border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:13px;color:var(--orange);">';
+            data.warnings.forEach(w => { html += `<p>${w}</p>`; });
+            html += '</div>';
+        }
+
+        // Issues
+        if (data.issues.length > 0) {
+            data.issues.forEach(issue => {
+                html += `
+                    <div class="issue-card">
+                        <div class="issue-header">
+                            <span class="badge ${issue.severity}">${issue.severity}</span>
+                            <span class="badge ${issue.category}">${issue.category}</span>
+                            <span class="badge source">${issue.source}</span>
+                            <span style="font-size:12px;color:var(--text-muted);font-family:monospace;">${issue.rule}</span>
+                            ${issue.line ? `<span class="issue-line">ligne ${issue.line}</span>` : ''}
+                        </div>
+                        <div class="issue-message">${issue.message}</div>
+                        ${issue.suggestion ? `<div class="issue-suggestion">${issue.suggestion}</div>` : ''}
+                    </div>`;
+            });
+        } else {
+            html += '<p style="color:var(--green);padding:20px;text-align:center;">Aucune issue detectee !</p>';
+        }
+
+        // Metrics
+        if (data.metrics) {
+            const m = data.metrics;
+            html += '<h3 style="margin-top:20px;">Metriques</h3>';
+            html += '<div class="summary-grid">';
+            html += `<div class="summary-item"><div class="value">${m.lines_of_code}</div><div class="label">Lignes</div></div>`;
+            html += `<div class="summary-item"><div class="value">${m.num_functions}</div><div class="label">Fonctions</div></div>`;
+            html += `<div class="summary-item"><div class="value">${m.num_classes}</div><div class="label">Classes</div></div>`;
+            html += `<div class="summary-item"><div class="value">${m.comment_lines}</div><div class="label">Commentaires</div></div>`;
+            html += '</div>';
+        }
+
+        container.innerHTML = html;
+    }
+
+    function renderPatternsList(container, data) {
+        let html = `<h3>${data.total} Patterns dans la base RAG</h3>`;
+        data.patterns.forEach(p => {
+            html += `
+                <div class="issue-card">
+                    <div class="issue-header">
+                        <span class="badge ${p.severity}">${p.severity}</span>
+                        <span class="badge ${p.category}">${p.category}</span>
+                        <span style="font-size:12px;color:var(--text-muted);font-family:monospace;">${p.id}</span>
+                        <span style="font-size:12px;color:var(--accent);margin-left:auto;">${p.language}</span>
+                    </div>
+                    <div class="issue-message">${p.pattern}</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Rule: ${p.rule}</div>
+                </div>`;
+        });
+        container.innerHTML = html;
+    }
+
+    function renderSearchResults(container, data) {
+        let html = `<h3>Patterns RAG trouves (${data.patterns.length})</h3>`;
+        data.patterns.forEach(p => {
+            const score = Math.round(p.similarity_score * 100);
+            html += `
+                <div class="issue-card">
+                    <div class="issue-header">
+                        <span class="badge ${p.severity}">${p.severity}</span>
+                        <span class="badge ${p.category}">${p.category}</span>
+                        <span style="font-size:12px;color:var(--accent);font-weight:bold;">${score}% similarite</span>
+                    </div>
+                    <div class="issue-message">${p.pattern}</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Rule: ${p.rule} | Lang: ${p.language}</div>
+                </div>`;
+        });
+        if (data.augmented_context) {
+            html += `<h3 style="margin-top:16px;">Contexte augmente (RAG)</h3>`;
+            html += `<div class="json-result"><pre>${data.augmented_context}</pre></div>`;
+        }
+        container.innerHTML = html;
+    }
+
+    function renderReviewsList(container, data) {
+        let html = `<h3>${data.pagination.total} Reviews (page ${data.pagination.page}/${data.pagination.pages})</h3>`;
+        data.data.forEach(r => {
+            const summary = typeof r.summary === 'string' ? JSON.parse(r.summary) : r.summary;
+            html += `
+                <div class="issue-card" style="cursor:pointer;" onclick="loadReview('${r.id}')">
+                    <div class="issue-header">
+                        <span class="badge source">${r.language}</span>
+                        <span style="font-size:13px;font-weight:600;">${summary.total} issues</span>
+                        ${summary.by_severity.critical > 0 ? `<span class="badge critical">${summary.by_severity.critical} critical</span>` : ''}
+                        ${summary.by_severity.high > 0 ? `<span class="badge high">${summary.by_severity.high} high</span>` : ''}
+                        <span class="issue-line">${new Date(r.created_at).toLocaleString('fr-FR')}</span>
+                    </div>
+                    <div style="font-size:12px;color:var(--text-muted);font-family:monospace;">${r.id}</div>
+                </div>`;
+        });
+        container.innerHTML = html;
+    }
+
+    async function loadReview(id) {
+        const result = await callTool('get_review', { review_id: id });
+        const content = result.result?.content?.[0]?.text;
+        if (content) {
+            const data = JSON.parse(content);
+            renderAnalysisResults(document.getElementById('results'), data);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  Protocol Log
+    // ═══════════════════════════════════════════════════════════════════════
+
+    function logMessage(type, data) {
+        const log = document.getElementById('protocolLog');
+        const time = new Date().toLocaleTimeString('fr-FR');
+        const arrow = type === 'request' ? '\u2192' : type === 'error' ? '\u2716' : '\u2190';
+        const json = JSON.stringify(data);
+        const truncated = json.length > 300 ? json.substring(0, 300) + '...' : json;
+
+        log.innerHTML += `
+            <div class="msg-row">
+                <span class="msg-time">${time}</span>
+                <span class="msg-arrow ${type}">${arrow}</span>
+                <span class="msg-body">${truncated}</span>
+            </div>`;
+        log.scrollTop = log.scrollHeight;
+    }
+
+    function clearLog() {
+        document.getElementById('protocolLog').innerHTML = '';
+    }
+
+    function toggleLog() {
+        const log = document.querySelector('.protocol-log');
+        log.style.height = log.style.height === '40px' ? '200px' : '40px';
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  Helpers
+    // ═══════════════════════════════════════════════════════════════════════
+
+    function formatToolName(name) {
+        return name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function syntaxHighlight(json) {
+        return json
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"([^"]+)":/g, '<span style="color:#42a5f5;">"$1"</span>:')
+            .replace(/: "([^"]*)"/g, ': <span style="color:#66bb6a;">"$1"</span>')
+            .replace(/: (\d+)/g, ': <span style="color:#ffa726;">$1</span>')
+            .replace(/: (true|false|null)/g, ': <span style="color:#ef5350;">$1</span>');
+    }
+    </script>
+</body>
+</html>
