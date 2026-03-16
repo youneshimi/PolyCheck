@@ -352,7 +352,7 @@ r = requests.get('http://localhost:8000/rag/patterns/team_rule_001')
 print(r.json()['pattern'])
 
 # 4. Chercher des patterns pertinents pour un code
-print("\n🔍 Recherche de patterns pertinents...")
+print("\n Recherche de patterns pertinents...")
 code_to_analyze = "def multiply(x, y):\n    return x * y"
 r = requests.post('http://localhost:8000/rag/retrieve', json={
     "code": code_to_analyze,

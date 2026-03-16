@@ -1,4 +1,4 @@
-# PolyCheck 🔍
+# PolyCheck
 
 > Analyseur de code multi-langages propulsé par GroqCloud (llama-3.3-70b-versatile)
 

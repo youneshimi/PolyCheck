@@ -7,7 +7,6 @@ import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { highlightSelectionMatches, searchKeymap } from '@codemirror/search';
 import { oneDark } from '@codemirror/theme-one-dark';
 
-// Language imports
 import { python } from '@codemirror/lang-python';
 import { javascript } from '@codemirror/lang-javascript';
 import { java } from '@codemirror/lang-java';
@@ -27,70 +26,70 @@ const LANG_MAP = {
     go: go,
 };
 
-// Custom dark theme to match PolyCheck's design
-const polycheckTheme = EditorView.theme({
-    '&': {
-        backgroundColor: 'var(--bg-input)',
-        color: 'var(--text)',
-        fontSize: '0.875rem',
-        borderRadius: 'var(--radius)',
-        border: '1px solid var(--border)',
-        height: '100%',
-    },
-    '&.cm-focused': {
-        outline: 'none',
-        borderColor: 'var(--accent)',
-    },
-    '.cm-content': {
-        fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace",
-        padding: '0.75rem 0',
-        caretColor: 'var(--accent)',
-        minHeight: '300px',
-    },
-    '.cm-gutters': {
-        backgroundColor: 'var(--bg-input)',
-        color: 'var(--text-muted)',
-        border: 'none',
-        borderRight: '1px solid var(--border)',
-        paddingRight: '4px',
-    },
-    '.cm-activeLineGutter': {
-        backgroundColor: 'rgba(108, 99, 255, 0.1)',
-        color: 'var(--accent)',
-    },
-    '.cm-activeLine': {
-        backgroundColor: 'rgba(108, 99, 255, 0.06)',
-    },
-    '.cm-selectionBackground': {
-        backgroundColor: 'rgba(108, 99, 255, 0.25) !important',
-    },
-    '.cm-cursor': {
-        borderLeftColor: 'var(--accent)',
-    },
-    '.cm-matchingBracket': {
-        backgroundColor: 'rgba(108, 99, 255, 0.3)',
-        outline: '1px solid rgba(108, 99, 255, 0.5)',
-    },
-    '.cm-foldGutter': {
-        width: '12px',
-    },
-    '.cm-scroller': {
-        overflow: 'auto',
-    },
-}, { dark: true });
+function createPolycheckTheme(isDark) {
+    return EditorView.theme({
+        '&': {
+            backgroundColor: 'var(--bg-input)',
+            color: 'var(--text)',
+            fontSize: '0.875rem',
+            borderRadius: 'var(--radius)',
+            border: '1px solid var(--border)',
+            height: '100%',
+        },
+        '&.cm-focused': {
+            outline: 'none',
+            borderColor: 'var(--accent)',
+        },
+        '.cm-content': {
+            fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace",
+            padding: '0.75rem 0',
+            caretColor: 'var(--accent)',
+            minHeight: '300px',
+        },
+        '.cm-gutters': {
+            backgroundColor: 'var(--bg-input)',
+            color: 'var(--text-muted)',
+            border: 'none',
+            borderRight: '1px solid var(--border)',
+            paddingRight: '4px',
+        },
+        '.cm-activeLineGutter': {
+            backgroundColor: isDark ? 'rgba(189, 147, 249, 0.1)' : 'rgba(124, 58, 237, 0.08)',
+            color: 'var(--accent)',
+        },
+        '.cm-activeLine': {
+            backgroundColor: isDark ? 'rgba(189, 147, 249, 0.06)' : 'rgba(124, 58, 237, 0.04)',
+        },
+        '.cm-selectionBackground': {
+            backgroundColor: isDark ? 'rgba(189, 147, 249, 0.25) !important' : 'rgba(124, 58, 237, 0.15) !important',
+        },
+        '.cm-cursor': {
+            borderLeftColor: 'var(--accent)',
+        },
+        '.cm-matchingBracket': {
+            backgroundColor: isDark ? 'rgba(189, 147, 249, 0.3)' : 'rgba(124, 58, 237, 0.2)',
+            outline: isDark ? '1px solid rgba(189, 147, 249, 0.5)' : '1px solid rgba(124, 58, 237, 0.4)',
+        },
+        '.cm-foldGutter': {
+            width: '12px',
+        },
+        '.cm-scroller': {
+            overflow: 'auto',
+        },
+    }, { dark: isDark });
+}
 
-export default function CodeEditor({ value, onChange, language, disabled }) {
+export default function CodeEditor({ value, onChange, language, disabled, isDark = true }) {
     const containerRef = useRef(null);
     const viewRef = useRef(null);
     const onChangeRef = useRef(onChange);
     const readOnlyComp = useRef(new Compartment());
 
-    // Keep callback ref in sync
     useEffect(() => {
         onChangeRef.current = onChange;
     }, [onChange]);
 
-    // Create editor (recreate on language change)
+    // Create editor (recreate on language or theme change)
     useEffect(() => {
         if (!containerRef.current) return;
 
@@ -102,38 +101,44 @@ export default function CodeEditor({ value, onChange, language, disabled }) {
             }
         });
 
-        const state = EditorState.create({
-            doc: value,
-            extensions: [
-                lineNumbers(),
-                highlightActiveLineGutter(),
-                history(),
-                foldGutter(),
-                drawSelection(),
-                rectangularSelection(),
-                indentOnInput(),
-                bracketMatching(),
-                closeBrackets(),
-                highlightActiveLine(),
-                highlightSelectionMatches(),
-                syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-                keymap.of([
-                    ...closeBracketsKeymap,
-                    ...defaultKeymap,
-                    ...searchKeymap,
-                    ...historyKeymap,
-                    ...foldKeymap,
-                    indentWithTab,
-                ]),
-                oneDark,
-                polycheckTheme,
-                langFn(),
-                updateListener,
-                EditorState.tabSize.of(2),
-                EditorView.lineWrapping,
-                readOnlyComp.current.of(EditorState.readOnly.of(disabled)),
-            ],
-        });
+        const extensions = [
+            lineNumbers(),
+            highlightActiveLineGutter(),
+            history(),
+            foldGutter(),
+            drawSelection(),
+            rectangularSelection(),
+            indentOnInput(),
+            bracketMatching(),
+            closeBrackets(),
+            highlightActiveLine(),
+            highlightSelectionMatches(),
+            syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+            keymap.of([
+                ...closeBracketsKeymap,
+                ...defaultKeymap,
+                ...searchKeymap,
+                ...historyKeymap,
+                ...foldKeymap,
+                indentWithTab,
+            ]),
+        ];
+
+        // Dark mode: oneDark syntax highlighting
+        if (isDark) {
+            extensions.push(oneDark);
+        }
+
+        extensions.push(
+            createPolycheckTheme(isDark),
+            langFn(),
+            updateListener,
+            EditorState.tabSize.of(2),
+            EditorView.lineWrapping,
+            readOnlyComp.current.of(EditorState.readOnly.of(disabled)),
+        );
+
+        const state = EditorState.create({ doc: value, extensions });
 
         const view = new EditorView({
             state,
@@ -146,9 +151,9 @@ export default function CodeEditor({ value, onChange, language, disabled }) {
             view.destroy();
             viewRef.current = null;
         };
-    }, [language]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [language, isDark]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Sync external value changes (e.g. clearing the editor)
+    // Sync external value changes
     useEffect(() => {
         const view = viewRef.current;
         if (!view) return;
@@ -160,7 +165,7 @@ export default function CodeEditor({ value, onChange, language, disabled }) {
         }
     }, [value]);
 
-    // Sync disabled/readOnly state via Compartment
+    // Sync disabled state
     useEffect(() => {
         const view = viewRef.current;
         if (!view) return;

@@ -1,30 +1,75 @@
 /* PolyCheck – CSS Global */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ─── Dark Theme (Dracula) ─────────────────────────────────────────────────── */
 :root {
-  --bg:          #0f1117;
-  --bg-card:     #1a1d27;
-  --bg-input:    #12151f;
-  --border:      #2d3148;
-  --accent:      #6c63ff;
-  --accent-h:    #8b85ff;
-  --text:        #e2e8f0;
-  --text-muted:  #8892a4;
-  --critical:    #ef4444;
-  --high:        #f97316;
-  --medium:      #eab308;
-  --low:         #22c55e;
-  --security:    #ec4899;
-  --bug:         #f97316;
-  --style-c:     #3b82f6;
-  --radius:      8px;
-  --shadow:      0 4px 24px rgba(0,0,0,0.4);
+  --bg:            #282a36;
+  --bg-card:       #343746;
+  --bg-input:      #21222c;
+  --border:        #44475a;
+  --accent:        #bd93f9;
+  --accent-h:      #caa8ff;
+  --accent-bg:     rgba(189, 147, 249, 0.12);
+  --text:          #f8f8f2;
+  --text-muted:    #6272a4;
+  --header-bg:     linear-gradient(135deg, #282a36 0%, #1e1f29 100%);
+  --header-border: #44475a;
+
+  /* Severity */
+  --critical:      #ff5555;
+  --high:          #ffb86c;
+  --medium:        #e2b93d;
+  --low:           #50fa7b;
+
+  /* Categories */
+  --security:      #ff79c6;
+  --bug:           #ffb86c;
+  --style-c:       #8be9fd;
+
+  /* Misc */
+  --code-bg:       rgba(255, 255, 255, 0.06);
+  --suggestion-bg: rgba(189, 147, 249, 0.08);
+  --suggestion-border: rgba(189, 147, 249, 0.2);
+  --radius:        8px;
+  --shadow:        0 4px 24px rgba(0, 0, 0, 0.5);
+  --transition:    0.25s ease;
+}
+
+/* ─── Light Theme ──────────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg:            #f0f2f5;
+  --bg-card:       #ffffff;
+  --bg-input:      #e8eaef;
+  --border:        #c9cdd5;
+  --accent:        #7c3aed;
+  --accent-h:      #6d28d9;
+  --accent-bg:     rgba(124, 58, 237, 0.08);
+  --text:          #1e293b;
+  --text-muted:    #64748b;
+  --header-bg:     linear-gradient(135deg, #ffffff 0%, #f0f0ff 100%);
+  --header-border: #d1d5db;
+
+  --critical:      #dc2626;
+  --high:          #ea580c;
+  --medium:        #ca8a04;
+  --low:           #16a34a;
+
+  --security:      #db2777;
+  --bug:           #ea580c;
+  --style-c:       #2563eb;
+
+  --code-bg:       rgba(0, 0, 0, 0.04);
+  --suggestion-bg: rgba(124, 58, 237, 0.06);
+  --suggestion-border: rgba(124, 58, 237, 0.18);
+  --shadow:        0 4px 24px rgba(0, 0, 0, 0.06);
 }
 
 html { font-size: 16px; }
+
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
+  transition: background var(--transition), color var(--transition);
 }
