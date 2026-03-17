@@ -1,6 +1,6 @@
 # PolyCheck — Spécification Technique (spec.md)
 
-> Version : 1.1 · Date : Mars 2026 · Auteur : youneshimi · Licence : MIT
+> Version : 1.2 · Date : Mars 2026 · Auteur : youneshimi · Licence : MIT
 
 ---
 
@@ -16,15 +16,16 @@
 8. [Logique métier](#8-logique-métier)
 9. [Système RAG (Retrieval Augmented Generation)](#9-système-rag-retrieval-augmented-generation)
 10. [Serveur MCP (Model Context Protocol)](#10-serveur-mcp-model-context-protocol)
-11. [Système de logs](#11-système-de-logs)
-12. [Interface utilisateur](#12-interface-utilisateur)
-13. [Gestion des erreurs et cas limites](#13-gestion-des-erreurs-et-cas-limites)
-14. [Variables d'environnement](#14-variables-denvironnement)
-15. [Déploiement](#15-déploiement)
-16. [Tests](#16-tests)
-17. [Métriques cibles](#17-métriques-cibles)
-18. [Décisions techniques](#18-décisions-techniques)
-19. [Évolutions post-MVP](#19-évolutions-post-mvp)
+11. [CLI (Command Line Interface)](#11-cli-command-line-interface)
+12. [Système de logs](#12-système-de-logs)
+13. [Interface utilisateur](#13-interface-utilisateur)
+14. [Gestion des erreurs et cas limites](#14-gestion-des-erreurs-et-cas-limites)
+15. [Variables d'environnement](#15-variables-denvironnement)
+16. [Déploiement](#16-déploiement)
+17. [Tests](#17-tests)
+18. [Métriques cibles](#18-métriques-cibles)
+19. [Décisions techniques](#19-décisions-techniques)
+20. [Évolutions post-MVP](#20-évolutions-post-mvp)
 
 ---
 
@@ -37,6 +38,7 @@ PolyCheck est un outil d'analyse de code source **multi-langages** qui combine :
 - Un **système RAG** (Retrieval Augmented Generation) basé sur ChromaDB qui enrichit les prompts LLM avec une base de connaissances de bonnes pratiques.
 - Un **agrégateur intelligent** qui fusionne, déduplique (exact + fuzzy) et priorise les résultats des 4 sources.
 - Un **serveur MCP** (Model Context Protocol) en PHP exposant 11 outils JSON-RPC 2.0, permettant l'intégration directe avec Claude et d'autres clients IA.
+- Une **CLI Node.js** (Command Line Interface) permettant l'analyse de fichiers locaux, la lecture depuis stdin et la consultation des reviews directement depuis le terminal.
 - Un **système de logs** en temps réel avec double stockage (mémoire + MySQL) et rétention automatique.
 - Une **persistance MySQL** de toutes les analyses avec UUIDs.
 - Une **interface web React** avec éditeur CodeMirror 6, thèmes Dracula/Light, console de logs flottante et filtres avancés.
@@ -51,6 +53,7 @@ PolyCheck est un outil d'analyse de code source **multi-langages** qui combine :
 - [x] Analyse AST statique Python + heuristiques pour 7 autres langages
 - [x] **Système RAG** : base de connaissances ChromaDB + embeddings Sentence-Transformers + augmentation de prompts
 - [x] **Serveur MCP** (PHP, JSON-RPC 2.0) : 11 outils exposés pour intégration IA
+- [x] **CLI Node.js** : analyse de fichiers, stdin/pipe, reviews, sortie colorée, auto-détection de langage
 - [x] Déduplication intelligente avancée : canonisation de règles (20+ variantes) + fenêtre glissante ±3 lignes
 - [x] Priorisation et cap à 12 issues par analyse
 - [x] Fallback automatique de modèle Groq en cas de décommissionnement
@@ -80,18 +83,18 @@ PolyCheck est un outil d'analyse de code source **multi-langages** qui combine :
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │                         UTILISATEUR                                  │
-│                 (Navigateur Web / Client IA MCP)                     │
-└───────┬────────────────────────────────────┬─────────────────────────┘
-        │ HTTP (port 5173)                   │ JSON-RPC 2.0 (port 3002)
-        ▼                                    ▼
-┌───────────────┐                   ┌─────────────────┐
-│   Frontend    │                   │   MCP Server    │
-│  Vite+React   │                   │     PHP 8.1     │
-│  CodeMirror 6 │                   │  11 outils MCP  │
-│  LogConsole   │                   │  Guzzle HTTP    │
-└───────┬───────┘                   └───┬─────────┬───┘
-        │ HTTP (port 3001)              │         │
-        ▼                              ▼         │
+│          (Navigateur Web / Client IA MCP / Terminal CLI)             │
+└───────┬──────────────────┬─────────────────┬────────────────────────┘
+        │ HTTP (5173)      │ JSON-RPC (3002) │ HTTP (3001)
+        ▼                  ▼                 ▼
+┌───────────────┐ ┌─────────────────┐ ┌───────────────┐
+│   Frontend    │ │   MCP Server    │ │     CLI       │
+│  Vite+React   │ │     PHP 8.1     │ │   Node.js     │
+│  CodeMirror 6 │ │  11 outils MCP  │ │  Commander    │
+│  LogConsole   │ │  Guzzle HTTP    │ │  Chalk + Ora  │
+└───────┬───────┘ └───┬─────────┬───┘ └───────┬───────┘
+        │ HTTP (3001)  │         │             │ HTTP (3001)
+        ▼             ▼         │             ▼
 ┌──────────────────────────────────────────┐     │
 │            Backend Node.js               │     │
 │           Express + Groq SDK             │     │
@@ -135,6 +138,7 @@ PolyCheck est un outil d'analyse de code source **multi-langages** qui combine :
 | RAG — Vecteurs       | ChromaDB (base vectorielle)                | PersistentClient, cosine      |
 | RAG — Embeddings     | Sentence-Transformers                      | `all-MiniLM-L6-v2`           |
 | Serveur MCP          | PHP 8.1 + Guzzle HTTP                     | JSON-RPC 2.0                  |
+| CLI                  | Node.js + Commander + Chalk + Ora          | ESM, Node 18+                 |
 | Base de données      | MySQL                                      | 8.0                           |
 | Admin DB             | phpMyAdmin                                 | latest                        |
 | Orchestration        | Docker Compose                             | v3                            |
@@ -715,9 +719,172 @@ Un dashboard HTML est accessible sur `http://localhost:3002/` permettant de test
 
 ---
 
-## 11. Système de logs
+## 11. CLI (Command Line Interface)
 
-### 11.1 Architecture
+### 11.1 Vue d'ensemble
+
+La CLI PolyCheck est un **service Node.js autonome** qui permet d'analyser du code source directement depuis le terminal. Elle appelle le backend via HTTP et affiche les résultats avec une sortie colorée et structurée.
+
+### 11.2 Stack technique CLI
+
+| Composant       | Technologie              | Rôle                                     |
+|-----------------|--------------------------|------------------------------------------|
+| Runtime         | Node.js 18+ (ESM)        | Exécution, `fetch` natif                 |
+| Parsing CLI     | Commander.js             | Commandes, sous-commandes, options       |
+| Couleurs        | Chalk 5                  | Sortie colorée (sévérités, catégories)   |
+| Spinners        | Ora 8                    | Indicateur de chargement pendant l'analyse|
+| HTTP            | `fetch` natif (Node 18+) | Appels vers le backend REST              |
+
+### 11.3 Structure des fichiers
+
+```
+cli/
+├── package.json              # Dépendances, bin entry "polycheck"
+├── Dockerfile                # Image node:20-alpine, ENTRYPOINT
+├── .dockerignore
+├── bin/
+│   └── polycheck.js          # Point d'entrée (#!/usr/bin/env node)
+└── src/
+    ├── commands/
+    │   ├── analyze.js        # Commande analyze <file> / --stdin
+    │   ├── reviewsList.js    # Commande reviews list
+    │   └── reviewsShow.js    # Commande reviews show <id>
+    ├── api/
+    │   └── client.js         # Client HTTP (appels backend REST)
+    └── utils/
+        ├── languageDetect.js # Auto-détection langage par extension
+        ├── formatter.js      # Formatage coloré des résultats
+        └── stdin.js          # Lecture stdin (pipe)
+```
+
+### 11.4 Commandes disponibles
+
+#### `polycheck analyze <fichier>`
+
+Analyse un fichier local. Le langage est auto-détecté par l'extension.
+
+```bash
+polycheck analyze main.py
+polycheck analyze src/App.js
+polycheck analyze --language cpp program.cc
+```
+
+**Options :**
+
+| Option                | Description                                          |
+|-----------------------|------------------------------------------------------|
+| `--stdin`             | Lire le code depuis stdin (pipe)                     |
+| `-l, --language <lang>` | Forcer le langage (contourne l'auto-détection)    |
+| `--api-url <url>`     | URL du backend (défaut: `http://localhost:3001`)     |
+
+**Exemple avec pipe :**
+
+```bash
+cat server.py | polycheck analyze --stdin --language python
+echo "console.log('test')" | polycheck analyze --stdin -l javascript
+```
+
+#### `polycheck reviews list`
+
+Liste les analyses passées avec pagination.
+
+```bash
+polycheck reviews list
+polycheck reviews list --page 2 --limit 10
+```
+
+**Options :**
+
+| Option          | Défaut | Description              |
+|-----------------|:------:|--------------------------|
+| `-p, --page <n>`| 1      | Numéro de page           |
+| `-n, --limit <n>`| 20    | Résultats par page       |
+
+#### `polycheck reviews show <id>`
+
+Affiche le détail complet d'une analyse avec toutes ses issues.
+
+```bash
+polycheck reviews show a1b2c3d4-e5f6-7890-abcd-ef1234567890
+```
+
+### 11.5 Auto-détection de langage
+
+| Extension(s)                  | Langage détecté |
+|-------------------------------|:---------------:|
+| `.py`                         | python          |
+| `.js`, `.mjs`, `.cjs`        | javascript      |
+| `.ts`, `.tsx`                 | typescript      |
+| `.java`                       | java            |
+| `.go`                         | go              |
+| `.rs`                         | rust            |
+| `.c`, `.h`                    | c               |
+| `.cpp`, `.cc`, `.cxx`, `.hpp` | cpp             |
+
+### 11.6 Sortie colorée
+
+La CLI utilise un système de couleurs cohérent pour la lisibilité :
+
+| Élément    | Couleur                                 |
+|------------|-----------------------------------------|
+| Critical   | Rouge gras                              |
+| High       | Orange (`#ffb86c`)                      |
+| Medium     | Jaune                                   |
+| Low        | Vert                                    |
+| Security   | Rouge + icône 🔒                        |
+| Bug        | Orange + icône 🐛                       |
+| Style      | Cyan + icône 🎨                         |
+| Suggestions| Italique dim                            |
+| Headers    | Gras avec séparateurs `─`              |
+
+### 11.7 Utilisation Docker
+
+La CLI n'est pas un service persistant (daemon). Elle s'exécute en one-shot :
+
+```bash
+# Build de l'image
+docker build -t polycheck-cli ./cli
+
+# Analyser un fichier local (monter le dossier courant)
+docker run --rm --network polycheck_net \
+  -v "$(pwd):/data" \
+  polycheck-cli analyze /data/test.py --api-url http://backend:3001
+
+# Lire depuis stdin
+cat test.py | docker run --rm -i --network polycheck_net \
+  polycheck-cli analyze --stdin -l python --api-url http://backend:3001
+
+# Lister les reviews
+docker run --rm --network polycheck_net \
+  polycheck-cli reviews list --api-url http://backend:3001
+```
+
+### 11.8 Installation locale (Git Bash)
+
+```bash
+cd cli
+npm install
+npm link    # Crée la commande globale "polycheck"
+
+# Puis depuis n'importe où :
+polycheck analyze chemin/vers/fichier.py
+polycheck reviews list
+
+# Ou sans npm link :
+node bin/polycheck.js analyze fichier.py
+```
+
+### 11.9 Variable d'environnement CLI
+
+| Variable             | Défaut                  | Description                  |
+|----------------------|-------------------------|------------------------------|
+| `POLYCHECK_API_URL`  | `http://localhost:3001`  | URL du backend (alternative à `--api-url`) |
+
+---
+
+## 12. Système de logs
+
+### 12.1 Architecture
 
 Le système de logs utilise un **double stockage** :
 
@@ -726,7 +893,7 @@ Le système de logs utilise un **double stockage** :
 | Mémoire (FIFO)     | Buffer JS in-memory| 500 entrées max | Polling rapide depuis le frontend|
 | Base de données     | MySQL `analysis_logs` | Illimité     | Persistance et audit            |
 
-### 11.2 Niveaux de log
+### 12.2 Niveaux de log
 
 | Niveau  | Couleur UI | Utilisation                                    |
 |---------|:----------:|------------------------------------------------|
@@ -735,11 +902,11 @@ Le système de logs utilise un **double stockage** :
 | `error` | rouge      | Erreurs (Groq invalide, service down)          |
 | `debug` | gris       | Détails techniques (compteurs, métriques)      |
 
-### 11.3 Rétention automatique
+### 12.3 Rétention automatique
 
 Le système conserve automatiquement les logs des **5 dernières analyses**. Les analyses plus anciennes et leurs logs associés sont supprimés en cascade.
 
-### 11.4 Console de logs flottante (UI)
+### 12.4 Console de logs flottante (UI)
 
 Le composant `LogConsole` est un panneau flottant (bottom-right) avec :
 - **Polling temps réel** : fetch `GET /api/logs` toutes les 1 seconde
@@ -750,9 +917,9 @@ Le composant `LogConsole` est un panneau flottant (bottom-right) avec :
 
 ---
 
-## 12. Interface utilisateur
+## 13. Interface utilisateur
 
-### 12.1 Layout
+### 13.1 Layout
 
 | Zone            | Contenu                                                          |
 |-----------------|------------------------------------------------------------------|
@@ -762,14 +929,14 @@ Le composant `LogConsole` est un panneau flottant (bottom-right) avec :
 | **Footer**      | Attribution "Propulsé par GroqCloud"                             |
 | **Flottant**    | Console de logs (bottom-right)                                   |
 
-### 12.2 Éditeur de code (CodeMirror 6)
+### 13.2 Éditeur de code (CodeMirror 6)
 
 - Coloration syntaxique pour 8 langages : Python, JavaScript, TypeScript, Java, Go, Rust, C, C++
 - Thème adaptatif : s'adapte au thème dark/light
 - Numéros de lignes
 - Désactivation pendant l'analyse (état `loading`)
 
-### 12.3 Système de thèmes
+### 13.3 Système de thèmes
 
 | Thème      | Base de couleurs                   | Détection                         |
 |------------|------------------------------------|------------------------------------|
@@ -781,7 +948,7 @@ Le composant `LogConsole` est un panneau flottant (bottom-right) avec :
 - **Toggle** : bouton dans le header (icônes SVG soleil/lune)
 - **Variables CSS** : toutes les couleurs sont dynamiques via `data-theme` attribute
 
-### 12.4 Affichage des résultats
+### 13.4 Affichage des résultats
 
 - **Badges statistiques colorés** : total, critical (rouge), high (orange), security, bugs, style
 - **Filtres** : par catégorie (security, bug, style) et par sévérité
@@ -791,7 +958,7 @@ Le composant `LogConsole` est un panneau flottant (bottom-right) avec :
 
 ---
 
-## 13. Gestion des erreurs et cas limites
+## 14. Gestion des erreurs et cas limites
 
 | Cas                         | Comportement                                         | Code HTTP |
 |-----------------------------|------------------------------------------------------|:---------:|
@@ -809,7 +976,7 @@ Le composant `LogConsole` est un panneau flottant (bottom-right) avec :
 
 ---
 
-## 14. Variables d'environnement
+## 15. Variables d'environnement
 
 ### GroqCloud
 
@@ -868,7 +1035,7 @@ Le composant `LogConsole` est un panneau flottant (bottom-right) avec :
 
 ---
 
-## 15. Déploiement
+## 16. Déploiement
 
 ### Prérequis
 
@@ -893,6 +1060,7 @@ docker compose up --build
 | `backend`         | `node:20-alpine`     | `backend/Dockerfile`          | —                     |
 | `mcp-server`      | PHP 8.1              | `mcp-server/Dockerfile`       | `curl /health`        |
 | `frontend`        | `node:20-alpine`     | `frontend/Dockerfile`         | —                     |
+| `cli` (one-shot)  | `node:20-alpine`     | `cli/Dockerfile`              | — (ENTRYPOINT)        |
 
 ### Ordre de démarrage (depends_on)
 
@@ -927,6 +1095,10 @@ php -S 0.0.0.0:3002 -t public
 # Frontend
 cd frontend && npm install
 npm run dev
+
+# CLI
+cd cli && npm install
+npm link    # Commande globale "polycheck"
 ```
 
 ### Initialisation de la base de données
@@ -935,7 +1107,7 @@ Le fichier `db/init.sql` est automatiquement exécuté au premier démarrage du 
 
 ---
 
-## 16. Tests
+## 17. Tests
 
 ### Smoke tests (`tests/smoke.http`)
 
@@ -997,7 +1169,7 @@ GET http://localhost:8000/rag/stats
 
 ---
 
-## 17. Métriques cibles
+## 18. Métriques cibles
 
 | Indicateur                    | Valeur cible |
 |-------------------------------|:------------:|
@@ -1012,10 +1184,12 @@ GET http://localhost:8000/rag/stats
 | Patterns RAG par défaut       | 17           |
 | Rétention analyses            | 5 dernières  |
 | Outils MCP exposés            | 11           |
+| Commandes CLI                 | 4            |
+| Langages auto-détectés (CLI)  | 8            |
 
 ---
 
-## 18. Décisions techniques
+## 19. Décisions techniques
 
 | Date        | Décision                                           | Raison                                                         |
 |-------------|-----------------------------------------------------|----------------------------------------------------------------|
@@ -1036,10 +1210,13 @@ GET http://localhost:8000/rag/stats
 | 2026-03-15  | CodeMirror 6 au lieu de textarea                    | Coloration syntaxique, numéros de lignes, thèmes              |
 | 2026-03-15  | Double stockage logs (mémoire + MySQL)              | Polling rapide pour l'UI + persistance pour audit              |
 | 2026-03-15  | Rétention à 5 analyses                              | Éviter la croissance incontrôlée de la base de données         |
+| 2026-03-17  | CLI Node.js ESM avec Commander + Chalk + Ora        | Service autonome, ESM pour chalk/ora modernes, fetch natif     |
+| 2026-03-17  | CLI appelle le backend via HTTP (pas de logique embarquée) | Architecture client léger, réutilise toute la stack existante |
+| 2026-03-17  | Auto-détection du langage par extension de fichier  | UX simplifiée, pas besoin de spécifier `--language` à chaque fois |
 
 ---
 
-## 19. Évolutions post-MVP
+## 20. Évolutions post-MVP
 
 ### Court terme (v1.1)
 

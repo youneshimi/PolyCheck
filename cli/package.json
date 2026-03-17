@@ -1,0 +1,22 @@
+{
+  "name": "polycheck-cli",
+  "version": "1.0.0",
+  "description": "PolyCheck CLI — Analyseur de code multi-langages en ligne de commande",
+  "type": "module",
+  "bin": {
+    "polycheck": "./bin/polycheck.js"
+  },
+  "scripts": {
+    "start": "node bin/polycheck.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "ora": "^8.1.0"
+  },
+  "author": "youneshimi",
+  "license": "MIT"
+}
